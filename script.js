@@ -83,7 +83,7 @@ const games = {
     skyscraper: {
         name: 'Skyscraper',
         description: 'Empire State Building',
-        status: 'playtest',
+        status: 'available',
         url: 'skyscraper.html'
     }
 };
