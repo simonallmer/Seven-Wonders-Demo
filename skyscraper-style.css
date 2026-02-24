@@ -4,7 +4,7 @@
     --accent-gold: #C5A059;
     --text-color: #E3DAC9;
     --ivory: #FDF5E6;
-    --onyx: #FF4D4D;
+    --red: #FF4D4D;
 }
 
 body {
@@ -173,22 +173,22 @@ h1 {
     transition: all 0.3s ease;
 }
 
-.ivory-theme {
+.white-theme {
     color: var(--ivory);
 }
 
-.ivory-theme .turn-indicator {
+.white-theme .turn-indicator {
     background: var(--ivory);
     box-shadow: 0 0 10px var(--ivory);
 }
 
-.onyx-theme {
-    color: var(--onyx);
+.red-theme {
+    color: var(--red);
 }
 
-.onyx-theme .turn-indicator {
-    background: var(--onyx);
-    box-shadow: 0 0 10px var(--onyx);
+.red-theme .turn-indicator {
+    background: var(--red);
+    box-shadow: 0 0 10px var(--red);
 }
 
 .controls {

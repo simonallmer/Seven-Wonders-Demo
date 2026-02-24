@@ -3,10 +3,11 @@ class SkyscraperGame {
     constructor() {
         this.gridSize = 19;
         this.grid = new Array(this.gridSize).fill(null).map(() => new Array(this.gridSize).fill(null));
-        this.turn = 'ivory';
+        this.turn = 'white';
         this.gameOver = false;
-        this.scores = { ivory: 0, onyx: 0 };
+        this.scores = { white: 0, red: 0 };
         this.validMoves = [];
+        this.lastMove = null;
         this.onStateChange = null;
         this.totalPlayableCells = 164; // (165 total valid cells - 1 blocked center)
         this.winThreshold = 83; // Over half of 164
@@ -15,12 +16,13 @@ class SkyscraperGame {
 
     reset() {
         this.grid = new Array(this.gridSize).fill(null).map(() => new Array(this.gridSize).fill(null));
-        this.turn = 'ivory';
+        this.turn = 'white';
         this.gameOver = false;
-        this.setGlobally(9, 0, 'ivory');
-        this.setGlobally(9, 18, 'ivory');
-        this.setGlobally(0, 9, 'onyx');
-        this.setGlobally(18, 9, 'onyx');
+        this.lastMove = null;
+        this.setGlobally(9, 0, 'white');
+        this.setGlobally(9, 18, 'white');
+        this.setGlobally(0, 9, 'red');
+        this.setGlobally(18, 9, 'red');
         this.updateValidMoves();
         this.updateScore();
         if (this.onStateChange) this.onStateChange();
@@ -139,6 +141,7 @@ class SkyscraperGame {
 
     makeMove(x, y) {
         if (this.gameOver || !this.validMoves.some(m => m.x === x && m.y === y)) return false;
+        this.lastMove = { x, y };
         this.setGlobally(x, y, this.turn);
         this.resolveLines(x, y);
         this.nextTurn();
@@ -147,16 +150,16 @@ class SkyscraperGame {
 
     nextTurn() {
         const lastPlayer = this.turn;
-        this.turn = this.turn === 'ivory' ? 'onyx' : 'ivory';
+        this.turn = this.turn === 'white' ? 'red' : 'white';
         this.updateValidMoves();
 
         // Check for new win condition: Over half of all fields occupied by one color
-        if (this.scores.ivory >= this.winThreshold || this.scores.onyx >= this.winThreshold) {
+        if (this.scores.white >= this.winThreshold || this.scores.red >= this.winThreshold) {
             this.gameOver = true;
         }
 
         if (!this.gameOver && this.validMoves.length === 0) {
-            this.turn = this.turn === 'ivory' ? 'onyx' : 'ivory';
+            this.turn = this.turn === 'white' ? 'red' : 'white';
             this.updateValidMoves();
             if (this.validMoves.length === 0) this.gameOver = true;
         }
@@ -164,7 +167,7 @@ class SkyscraperGame {
         if (this.onStateChange) this.onStateChange();
 
         // AI Turn
-        if (!this.gameOver && this.aiDifficulty && this.turn === 'onyx') {
+        if (!this.gameOver && this.aiDifficulty && this.turn === 'red') {
             setTimeout(() => {
                 const move = SkyscraperAI.getMove(this, this.aiDifficulty);
                 if (move) this.makeMove(move.x, move.y);
@@ -234,9 +237,9 @@ class SkyscraperGame {
     }
 
     updateScore() {
-        let i = 0, o = 0;
-        for (let x = 0; x < 19; x++) { for (let y = 0; y < 19; y++) { if (this.grid[x][y] === 'ivory') i++; else if (this.grid[x][y] === 'onyx') o++; } }
-        this.scores = { ivory: i, onyx: o };
+        let w = 0, r = 0;
+        for (let x = 0; x < 19; x++) { for (let y = 0; y < 19; y++) { if (this.grid[x][y] === 'white') w++; else if (this.grid[x][y] === 'red') r++; } }
+        this.scores = { white: w, red: r };
     }
 }
 
@@ -302,7 +305,7 @@ class SkyscraperAI {
         let min = 20;
         for (let ix = 0; ix < 19; ix++) {
             for (let iy = 0; iy < 19; iy++) {
-                if (game.grid[ix][iy] === 'onyx') {
+                if (game.grid[ix][iy] === 'red') {
                     const d = Math.abs(x - ix) + Math.abs(y - iy);
                     if (d < min) min = d;
                 }
@@ -312,9 +315,9 @@ class SkyscraperAI {
     }
 
     static isBlockingOpponent(game, x, y) {
-        // Simple check: are we next to an ivory stone
+        // Simple check: are we next to an white stone
         const neighbors = [{ x: x + 1, y: y }, { x: x - 1, y: y }, { x: x, y: y + 1 }, { x: x, y: y - 1 }];
-        return neighbors.some(n => n.x >= 0 && n.x < 19 && n.y >= 0 && n.y < 19 && game.grid[n.x][n.y] === 'ivory');
+        return neighbors.some(n => n.x >= 0 && n.x < 19 && n.y >= 0 && n.y < 19 && game.grid[n.x][n.y] === 'white');
     }
 }
 
@@ -324,7 +327,7 @@ class View2D {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.game = game;
-        this.colors = { ivory: '#FDF5E6', onyx: '#FF4D4D', structure: '#1A1A1A', neutral: '#1a1a1a', highlight: 'rgba(197, 160, 89, 0.3)' };
+        this.colors = { white: '#FDF5E6', red: '#FF4D4D', structure: '#1A1A1A', neutral: '#1a1a1a', highlight: 'rgba(197, 160, 89, 0.3)', lastMove: 'rgba(255, 255, 0, 0.5)' };
     }
     resize() {
         const rect = this.canvas.parentElement.getBoundingClientRect();
@@ -353,13 +356,23 @@ class View2D {
                 if (!this.game.isValidCell(x, y)) continue;
                 const state = this.game.grid[x][y], px = x * c, py = y * c;
                 ctx.fillStyle = this.colors.neutral;
-                if (state === 'ivory') { ctx.fillStyle = this.colors.ivory; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.ivory; }
-                else if (state === 'onyx') { ctx.fillStyle = this.colors.onyx; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.onyx; }
+                if (state === 'white') { ctx.fillStyle = this.colors.white; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.white; }
+                else if (state === 'red') { ctx.fillStyle = this.colors.red; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.red; }
                 else if (this.game.validMoves.some(m => m.x === x && m.y === y)) {
                     ctx.fillStyle = this.colors.highlight;
                     ctx.strokeStyle = 'rgba(197,160,89,0.5)';
                     ctx.strokeRect(px + 0.5, py + 0.5, c - 1, c - 1);
                 }
+
+                // Last Move Indicator
+                if (this.game.lastMove && this.game.lastMove.x === x && this.game.lastMove.y === y) {
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = '#FFFF00';
+                    ctx.strokeStyle = '#FFFF00';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(px + 2, py + 2, c - 4, c - 4);
+                }
+
                 ctx.fillRect(px + 0.5, py + 0.5, c - 1, c - 1);
                 ctx.shadowBlur = 0;
             }
@@ -612,7 +625,7 @@ class View3D {
     }
     update() {
         // Update Beacon Lead Indicator
-        const diff = this.game.scores.ivory - this.game.scores.onyx;
+        const diff = this.game.scores.white - this.game.scores.red;
         if (Math.abs(diff) <= 1) {
             this.beacon.material.color.setHex(0x111111);
             this.beaconLight.intensity = 0;
@@ -623,7 +636,7 @@ class View3D {
         } else {
             this.beacon.material.color.setHex(0xFF0000);
             this.beaconLight.color.setHex(0xFF0000);
-            this.beaconLight.intensity = 8;
+            this.beaconLight.intensity = 15; // Increased red intensity
         }
 
         this.windowMeshes.forEach((meshes, key) => {
@@ -633,13 +646,20 @@ class View3D {
             const isValid = this.game.validMoves.some(m => cells.some(c => c.x === m.x && c.y === m.y));
             const isHovered = this.hoveredKey === key;
 
-            if (cells.some(c => this.game.grid[c.x][c.y] === 'ivory')) { color = 0xFFFFFF; glow = true; intensity = 2.5; }
-            else if (cells.some(c => this.game.grid[c.x][c.y] === 'onyx')) { color = 0xFF0000; glow = true; intensity = 2.5; }
+            if (cells.some(c => this.game.grid[c.x][c.y] === 'white')) { color = 0xFFFFFF; glow = true; intensity = 2.5; }
+            else if (cells.some(c => this.game.grid[c.x][c.y] === 'red')) { color = 0xFF0000; glow = true; intensity = 2.5; }
             else if (isValid) {
-                const hoverColor = this.game.turn === 'ivory' ? 0xFFFFFF : 0xFF0000;
+                const hoverColor = this.game.turn === 'white' ? 0xFFFFFF : 0xFF0000;
                 color = isHovered ? hoverColor : 0xC5A059;
                 intensity = isHovered ? 2.0 : 0; // Removed glow for idle valid fields
                 glow = isHovered;
+            }
+
+            // Highlight Last Move
+            const isLastMove = this.game.lastMove && cells.some(c => c.x === this.game.lastMove.x && c.y === this.game.lastMove.y);
+            if (isLastMove) {
+                glow = true;
+                intensity = 5.0; // Extra glow for last move
             }
 
             meshes.forEach(m => {
@@ -684,14 +704,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const v3d = new View3D(document.getElementById('canvas3d'), game);
 
     game.onStateChange = () => {
-        document.getElementById('score-ivory').textContent = game.scores.ivory;
-        document.getElementById('score-onyx').textContent = game.scores.onyx;
-        document.getElementById('turn-ivory').style.opacity = game.turn === 'ivory' ? '1' : '0.2';
-        document.getElementById('turn-onyx').style.opacity = game.turn === 'onyx' ? '1' : '0.2';
+        document.getElementById('score-white').textContent = game.scores.white;
+        document.getElementById('score-red').textContent = game.scores.red;
+        document.getElementById('turn-white').style.opacity = game.turn === 'white' ? '1' : '0.2';
+        document.getElementById('turn-red').style.opacity = game.turn === 'red' ? '1' : '0.2';
         v2d.draw(); v3d.update();
         if (game.gameOver) {
-            document.getElementById('msg-title').textContent = game.scores.ivory > game.scores.onyx ? 'IVORY VICTORIOUS' : 'CRIMSON VICTORIOUS';
-            document.getElementById('msg-body').textContent = `Final Score: ${game.scores.ivory} - ${game.scores.onyx}`;
+            document.getElementById('msg-title').textContent = game.scores.white > game.scores.red ? 'WHITE VICTORIOUS' : 'RED VICTORIOUS';
+            document.getElementById('msg-body').textContent = `Final Score: ${game.scores.white} - ${game.scores.red}`;
             document.getElementById('message-modal').style.display = 'flex';
         }
     };
