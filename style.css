@@ -1,3 +1,8 @@
+@font-face {
+    font-family: 'Ancient Tulip';
+    src: url('Fonts/Ancient-Tulip.ttf') format('truetype');
+}
+
 /* Reset and Base Styles */
 * {
     margin: 0;
@@ -7,17 +12,18 @@
 
 body {
     font-family: 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
-    background-color: #d4cfc4;
+    background-color: #0d0b09;
+    /* Dark obsidian base */
     background-image:
-        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" /></filter><rect width="400" height="400" filter="url(%23noise)" opacity="0.05"/></svg>');
+        linear-gradient(rgba(197, 160, 89, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(197, 160, 89, 0.05) 1px, transparent 1px),
+        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" /></filter><rect width="400" height="400" filter="url(%23noise)" opacity="0.1"/></svg>');
     background-size: 100px 100px, 100px 100px, 400px 400px;
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #2a2520;
+    color: #E3DAC9;
     position: relative;
 }
 
@@ -42,13 +48,13 @@ body::before {
     position: absolute;
     top: 20px;
     left: 20px;
-    color: #2a2520;
+    color: #C5A059;
     text-decoration: none;
     font-size: 0.95rem;
     letter-spacing: 0.05em;
     padding: 8px 16px;
-    border: 1px solid rgba(100, 90, 80, 0.3);
-    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(197, 160, 89, 0.3);
+    background: rgba(0, 0, 0, 0.3);
     transition: all 0.3s ease;
     z-index: 10;
 }
@@ -73,15 +79,16 @@ body::before {
 }
 
 .title {
-    font-size: 3.5rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    color: #1a1612;
+    font-size: 4.5rem;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    color: #C5A059;
     text-shadow:
-        2px 2px 0px rgba(255, 255, 255, 0.3),
-        -1px -1px 0px rgba(0, 0, 0, 0.1);
+        0 0 25px rgba(197, 160, 89, 0.4),
+        2px 2px 4px rgba(0, 0, 0, 0.8);
     margin-bottom: 20px;
-    font-family: 'Cinzel', serif;
+    font-family: 'Ancient Tulip', serif;
+    text-transform: uppercase;
 }
 
 /* Game Menu Styles - Premium Dark Obsidian */
@@ -152,10 +159,12 @@ body::before {
 }
 
 .game-link:hover {
-    color: #1a1612;
-    background: rgba(139, 115, 85, 0.08);
-    border-bottom-color: rgba(100, 90, 80, 0.4);
+    color: #FDF5E6;
+    /* Creamy white instead of black */
+    background: rgba(197, 160, 89, 0.1);
+    border-bottom-color: #C5A059;
     padding-left: 36px;
+    text-shadow: 0 0 15px rgba(197, 160, 89, 0.6);
 }
 
 .game-link:hover::before {
@@ -187,18 +196,26 @@ body::before {
     transform: none;
 }
 
+.logo-container {
+    margin: 40px 0 0;
+    display: flex;
+    justify-content: center;
+}
+
+
+
 /* Copyright Footer */
 .copyright {
-    margin-top: 40px;
+    margin-top: 20px;
     text-align: center;
     padding: 20px 0;
-    border-top: 1px solid rgba(100, 90, 80, 0.2);
+    border-top: 1px solid rgba(197, 160, 89, 0.1);
 }
 
 .copyright p {
     font-size: 0.85rem;
     letter-spacing: 0.05em;
-    color: rgba(42, 37, 32, 0.6);
+    color: rgba(227, 218, 201, 0.6);
     font-weight: 400;
 }
 
@@ -258,7 +275,7 @@ body::before {
 .product-title {
     font-size: 2rem;
     font-weight: 700;
-    color: #1a1612;
+    color: #E3DAC9;
     margin-bottom: 20px;
     font-family: 'Cinzel', serif;
     letter-spacing: 0.1em;
