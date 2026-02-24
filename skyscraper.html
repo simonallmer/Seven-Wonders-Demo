@@ -42,12 +42,12 @@
                 <button id="toggle-2d">2D View</button>
                 <button id="toggle-3d" class="active">3D View</button>
                 <div class="ai-dropdown">
-                    <button id="ai-btn">Human vs Human</button>
+                    <button id="ai-btn">Opponent: Human</button>
                     <div class="ai-menu" id="ai-menu">
-                        <button data-diff="none">Human vs Human</button>
-                        <button data-diff="easy">AI Opponent: Easy</button>
-                        <button data-diff="medium">AI Opponent: Medium</button>
-                        <button data-diff="hard">AI Opponent: Hard</button>
+                        <button data-diff="none">Human</button>
+                        <button data-diff="easy">Computer: Easy</button>
+                        <button data-diff="medium">Computer: Medium</button>
+                        <button data-diff="hard">Computer: Hard</button>
                     </div>
                 </div>
                 <button id="rules-btn">Rules</button>
@@ -76,7 +76,7 @@
 
     <div id="rules-modal" class="modal">
         <div class="modal-content">
-            <h2>The Skyline Code</h2>
+            <h2>Skyscraper Rules</h2>
             <div class="rules-text">
                 <strong>The Objective:</strong> Dominate the skyscraper by either claiming over <strong>half</strong> of
                 the territory (83 fields) or having more stones than your opponent when moves are exhausted.<br><br>
@@ -88,10 +88,8 @@
                 <strong>7</strong> windows (vertical) triggers a capture. The player with the <strong>majority</strong>
                 of stones in that line claims all fields in it.<br><br>
                 <strong>Split Capture:</strong> If a move closes multiple lines simultaneously, each is evaluated for
-                majority. This reflects the building's structural integrity across different axes.<br><br>
-                <strong>Invincibility:</strong> When closing multiple lines, the <strong>trigger stone</strong> you
-                placed is safe from being captured by the opponent, provided you won at least one of the lines it
-                completed.
+                majority. In this case, the <strong>trigger stone</strong> you placed is safe from being captured by the
+                opponent, provided it won one of the lines it completed.
             </div>
             <button onclick="document.getElementById('rules-modal').style.display='none'">Understood</button>
         </div>

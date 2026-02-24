@@ -710,10 +710,11 @@ document.addEventListener('DOMContentLoaded', () => {
     aiBtn.onclick = () => aiMenu.classList.toggle('visible');
 
     aiMenu.querySelectorAll('button').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
             const diff = btn.getAttribute('data-diff');
             game.aiDifficulty = diff === 'none' ? null : diff;
-            aiBtn.textContent = btn.textContent;
+            aiBtn.textContent = 'Opponent: ' + btn.textContent;
             aiMenu.classList.remove('visible');
             game.reset();
         };
