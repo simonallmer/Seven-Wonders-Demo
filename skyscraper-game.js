@@ -98,7 +98,7 @@ class SkyscraperGame {
         if (y === 7 && x > 11) n.push({ x: 11, y: 18 - x });
         if (x === 7 && y > 11) n.push({ x: 18 - y, y: 11 });
         if (y === 11 && x < 7) n.push({ x: 7, y: 18 - x });
-        if (x === 11 && y > 11) n.push({ x: 18 - y, y: 11 });
+        if (x === 11 && y > 11) n.push({ x: y, y: 11 });
         if (y === 11 && x > 11) n.push({ x: 11, y: x });
         return n;
     }
