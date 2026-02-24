@@ -294,153 +294,60 @@ body::before {
 /* Google Fonts Import */
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;700&display=swap');
 
-/* 3D Menu Stone Block Styles */
+/* 3D Menu Flipper Styles */
 .menu-container-3d {
-    perspective: 2000px;
+    perspective: 1000px;
     width: 100%;
-    margin: 4rem 0;
+    margin-bottom: 2rem;
     position: relative;
     z-index: 5;
-    user-select: none;
 }
 
 .menu-flipper {
     position: relative;
     width: 100%;
-    height: 500px;
+    transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     transform-style: preserve-3d;
-    transition: transform 0.1s ease-out;
-    /* Controlled via JS for drag */
-    cursor: grab;
 }
 
-.menu-flipper:active {
-    cursor: grabbing;
+.menu-flipper.flipped {
+    transform: rotateY(180deg);
 }
 
 .menu-face {
-    position: absolute;
     width: 100%;
-    height: 100%;
+    -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    background: #e8e4db;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.05);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    overflow: hidden;
-}
-
-/* Texture for the stone */
-.menu-face::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><filter id="stone"><feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0.1"/></filter><rect width="200" height="200" filter="url(%23stone)" opacity="0.15"/></svg>');
-    pointer-events: none;
-    z-index: 0;
-}
-
-.menu-face nav {
-    position: relative;
-    z-index: 1;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
 }
 
 .menu-face.menu-front {
-    transform: translateZ(40px);
-    /* Stone thickness */
+    position: relative;
+    z-index: 2;
+    transform: rotateY(0deg);
 }
 
 .menu-face.menu-back {
-    transform: rotateY(180deg) translateZ(40px);
-}
-
-/* Side faces to give thickness (The Stone Block) */
-.menu-flipper::before,
-.menu-flipper::after,
-.side-left,
-.side-right {
-    content: '';
-    position: absolute;
-    background: #d1ccc0;
-    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.2);
-}
-
-/* Creating the cuboid with extra faces */
-/* We'll add these as hidden elements in index.html to avoid CSS pseudo-element limitations for 4 sides */
-.menu-side {
-    position: absolute;
-    background: #c5bfb1;
-    backface-visibility: visible;
-    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.2);
-}
-
-.menu-side::after {
-    content: '';
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2"/></filter><rect width="100" height="100" filter="url(%23grain)" opacity="0.1"/></svg>');
-}
-
-.side-top {
-    width: 100%;
-    height: 80px;
-    top: -40px;
-    transform: rotateX(90deg);
-}
-
-.side-bottom {
-    width: 100%;
-    height: 80px;
-    bottom: -40px;
-    transform: rotateX(-90deg);
-}
-
-.side-left {
-    width: 80px;
-    height: 100%;
-    left: -40px;
-    transform: rotateY(-90deg);
-}
-
-.side-right {
-    width: 80px;
-    height: 100%;
-    right: -40px;
-    transform: rotateY(90deg);
+    transform: rotateY(180deg);
+    z-index: 1;
 }
 
 .menu-toggle-wrapper {
-    margin-top: auto;
-    padding-bottom: 20px;
-    border-top: 1px solid rgba(100, 90, 80, 0.15);
+    margin-top: 20px;
+    text-align: center;
+    border-top: 1px solid rgba(100, 90, 80, 0.2);
+    padding-top: 20px;
 }
 
 .menu-toggle-btn {
-    font-size: 0.8rem;
-    padding: 12px 24px;
-    min-width: 220px;
-    background: rgba(0, 0, 0, 0.05);
-    border: 1px solid rgba(139, 115, 85, 0.3);
-    color: #4a4035;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    font-weight: 700;
-    margin-bottom: 20px;
+    font-size: 0.85rem;
+    padding: 10px 24px;
+    min-width: 180px;
+    background: rgba(255, 255, 255, 0.4);
 }
 
 .menu-toggle-btn:hover {
-    background: rgba(139, 115, 85, 0.1);
-    border-color: rgba(139, 115, 85, 0.6);
-    color: #1a1612;
+    background: rgba(255, 255, 255, 0.6);
 }

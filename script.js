@@ -144,106 +144,27 @@ window.addEventListener('load', () => {
     }, 100);
 });
 
-// --- 3D Menu Stone Interaction ---
+// Menu Flip Functionality
 document.addEventListener('DOMContentLoaded', () => {
     const flipper = document.querySelector('.menu-flipper');
-    const container = document.querySelector('.menu-container-3d');
     const showNewBtn = document.getElementById('show-new-wonders');
     const showOldBtn = document.getElementById('show-old-wonders');
 
-    if (!flipper) return;
-
-    let rotationY = 0;
-    let isDragging = false;
-    let startX = 0;
-    let velocity = 0;
-    let lastX = 0;
-    let lastTime = 0;
-
-    // Apply rotation
-    const updateRotation = () => {
-        flipper.style.transform = `rotateY(${rotationY}deg)`;
-    };
-
-    // Auto-flipper buttons still work but interact with the rotation state
-    if (showNewBtn) {
+    if (flipper && showNewBtn && showOldBtn) {
         showNewBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            velocity = 15; // Give it a spin
+            flipper.classList.add('flipped');
         });
-    }
 
-    if (showOldBtn) {
         showOldBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            velocity = -15; // Spin other way
+            flipper.classList.remove('flipped');
         });
-    }
 
-    // Drag Interaction
-    const onStart = (e) => {
-        isDragging = true;
-        startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-        lastX = startX;
-        lastTime = Date.now();
-        velocity = 0;
-        flipper.style.transition = 'none';
-    };
-
-    const onMove = (e) => {
-        if (!isDragging) return;
-        const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-        const deltaX = currentX - lastX;
-
-        rotationY += deltaX * 0.5; // Sensitivity
-        updateRotation();
-
-        const currentTime = Date.now();
-        const timeDelta = currentTime - lastTime;
-        if (timeDelta > 0) {
-            velocity = (deltaX / timeDelta) * 10;
+        // Check for URL parameter to auto-flip
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('menu') === 'new') {
+            flipper.classList.add('flipped');
         }
-
-        lastX = currentX;
-        lastTime = currentTime;
-    };
-
-    const onEnd = () => {
-        isDragging = false;
-        flipper.style.transition = 'transform 0.1s ease-out';
-    };
-
-    // Inertia Loop
-    const animate = () => {
-        if (!isDragging) {
-            rotationY += velocity;
-            velocity *= 0.95; // Friction
-
-            // Snap to faces if slow enough
-            if (Math.abs(velocity) < 0.1) {
-                velocity = 0;
-                // Optional: Snap to 0 or 180
-                const target = Math.round(rotationY / 180) * 180;
-                rotationY += (target - rotationY) * 0.1;
-            }
-            updateRotation();
-        }
-        requestAnimationFrame(animate);
-    };
-
-    container.addEventListener('mousedown', onStart);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onEnd);
-
-    container.addEventListener('touchstart', onStart, { passive: true });
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onEnd);
-
-    // Initial check for URL parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('menu') === 'new') {
-        rotationY = 180;
     }
-
-    requestAnimationFrame(animate);
 });
