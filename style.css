@@ -84,18 +84,33 @@ body::before {
     font-family: 'Cinzel', serif;
 }
 
-/* Game Menu Styles */
+/* Game Menu Styles - Premium Dark Obsidian */
 .game-menu {
     background: linear-gradient(135deg,
-            rgba(255, 255, 255, 0.2) 0%,
-            rgba(240, 235, 225, 0.15) 100%);
-    border: 2px solid rgba(100, 90, 80, 0.2);
+            #1a1612 0%,
+            #110f0d 100%);
+    background-image:
+        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><filter id="texture"><feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="3" /></filter><rect width="200" height="200" filter="url(%23texture)" opacity="0.1"/></svg>'),
+        linear-gradient(135deg, #1a1612 0%, #110f0d 100%);
+    border: 1px solid #C5A059;
     border-radius: 2px;
     padding: 40px 60px;
     box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+        0 20px 50px rgba(0, 0, 0, 0.5),
+        inset 0 0 100px rgba(197, 160, 89, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.game-menu::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, transparent 30%, rgba(0, 0, 0, 0.3) 100%);
+    pointer-events: none;
 }
 
 .game-list {
@@ -113,14 +128,15 @@ body::before {
     display: block;
     font-size: 1.25rem;
     font-weight: 500;
-    letter-spacing: 0.08em;
-    color: #2a2520;
+    letter-spacing: 0.12em;
+    color: #E3DAC9;
     text-decoration: none;
     padding: 14px 24px;
-    border-bottom: 1px solid rgba(100, 90, 80, 0.25);
-    transition: all 0.3s ease;
+    border-bottom: 1px solid rgba(197, 160, 89, 0.2);
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
     position: relative;
     background: transparent;
+    text-transform: uppercase;
 }
 
 .game-link::before {
@@ -200,15 +216,16 @@ body::before {
     font-family: 'Cinzel', serif;
     font-size: 1rem;
     font-weight: 700;
-    color: #2a2520;
-    background: transparent;
-    border: 2px solid rgba(100, 90, 80, 0.4);
+    color: #C5A059;
+    background: #1a1612;
+    border: 1px solid #C5A059;
     cursor: pointer;
     text-decoration: none;
     transition: all 0.3s ease;
     min-width: 200px;
     text-align: center;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
 }
 
 .action-btn:hover {
@@ -345,9 +362,15 @@ body::before {
     font-size: 0.85rem;
     padding: 10px 24px;
     min-width: 180px;
-    background: rgba(255, 255, 255, 0.4);
+    background: #110f0d;
+    color: #C5A059;
+    border: 1px solid rgba(197, 160, 89, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
 }
 
 .menu-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.6);
+    background: #1a1612;
+    border-color: #C5A059;
+    box-shadow: 0 0 15px rgba(197, 160, 89, 0.2);
 }
