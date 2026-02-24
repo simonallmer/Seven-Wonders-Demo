@@ -184,8 +184,8 @@ class SkyscraperGame {
         const axes = ['u', 'v', 'w'];
         const triggerPlayer = this.turn;
 
-        let ivoryCaptures = new Set();
-        let onyxCaptures = new Set();
+        let whiteCaptures = new Set();
+        let redCaptures = new Set();
         let triggerWonByPlayer = false;
 
         axes.forEach(axis => {
@@ -200,20 +200,20 @@ class SkyscraperGame {
             }
 
             if (line.length === lineLength) {
-                let ivoryCount = 0, onyxCount = 0, isFull = true;
+                let whiteCount = 0, redCount = 0, isFull = true;
                 line.forEach(c => {
                     const color = this.grid[c.x][c.y];
                     if (!color) isFull = false;
-                    if (color === 'ivory') ivoryCount++;
-                    else if (color === 'onyx') onyxCount++;
+                    if (color === 'white') whiteCount++;
+                    else if (color === 'red') redCount++;
                 });
 
-                if (isFull && ivoryCount !== onyxCount) {
-                    const winner = ivoryCount > onyxCount ? 'ivory' : 'onyx';
+                if (isFull && whiteCount !== redCount) {
+                    const winner = whiteCount > redCount ? 'white' : 'red';
                     line.forEach(c => {
                         const key = `${c.x},${c.y}`;
-                        if (winner === 'ivory') ivoryCaptures.add(key);
-                        else onyxCaptures.add(key);
+                        if (winner === 'white') whiteCaptures.add(key);
+                        else redCaptures.add(key);
                     });
                     if (winner === triggerPlayer) triggerWonByPlayer = true;
                 }
@@ -221,13 +221,13 @@ class SkyscraperGame {
         });
 
         // Apply captures
-        ivoryCaptures.forEach(key => {
+        whiteCaptures.forEach(key => {
             const [x, y] = key.split(',').map(Number);
-            this.setGlobally(x, y, 'ivory');
+            this.setGlobally(x, y, 'white');
         });
-        onyxCaptures.forEach(key => {
+        redCaptures.forEach(key => {
             const [x, y] = key.split(',').map(Number);
-            this.setGlobally(x, y, 'onyx');
+            this.setGlobally(x, y, 'red');
         });
 
         // Invincible trigger stone: if you won at least one line, the stone you placed stays yours

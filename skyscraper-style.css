@@ -3,7 +3,7 @@
     --panel-bg: #111111;
     --accent-gold: #C5A059;
     --text-color: #E3DAC9;
-    --ivory: #FDF5E6;
+    --white: #FDF5E6;
     --red: #FF4D4D;
 }
 
@@ -174,12 +174,12 @@ h1 {
 }
 
 .white-theme {
-    color: var(--ivory);
+    color: var(--white);
 }
 
 .white-theme .turn-indicator {
-    background: var(--ivory);
-    box-shadow: 0 0 10px var(--ivory);
+    background: var(--white);
+    box-shadow: 0 0 10px var(--white);
 }
 
 .red-theme {
