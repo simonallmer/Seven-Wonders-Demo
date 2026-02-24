@@ -78,20 +78,25 @@
         <div class="modal-content">
             <h2>Skyscraper Rules</h2>
             <div class="rules-text">
-                <strong>The Objective:</strong> Dominate the skyscraper by either claiming over <strong>half</strong> of
-                the territory (83 fields) or having more stones than your opponent when moves are exhausted.<br><br>
-                <strong>Connection:</strong> You can only place a stone if it has a <strong>clear line of sight</strong>
-                through the 3D grid to another stone of your color.<br><br>
-                <strong>Shadow Rule:</strong> Opponent windows <strong>block</strong> your light. You cannot project
-                connections through enemy-occupied spaces.<br><br>
-                <strong>Capture:</strong> Forming a complete line of <strong>5</strong> windows (horizontal) or
-                <strong>7</strong> windows (vertical) triggers a capture. The player with the <strong>majority</strong>
-                of stones in that line claims all fields in it.<br><br>
-                <strong>Split Capture:</strong> If a move closes multiple lines simultaneously, each is evaluated for
-                majority. In this case, the <strong>trigger stone</strong> you placed is safe from being captured by the
-                opponent, provided it won one of the lines it completed.
+                <strong>Objective:</strong> Domination is achieved by securing more than <strong>half</strong> of the
+                playable area (83 fields) or by maintaining a higher field count when no further moves are
+                possible.<br><br>
+                <strong>Connection:</strong> A field may be illuminated only if it maintains a <strong>clear line of
+                    sight</strong>
+                through the 3D structure to another field of the same color.<br><br>
+                <strong>Shadow Rule:</strong> Opponent-controlled fields <strong>obstruct</strong> light. Connections
+                cannot be
+                established through sectors occupied by the adversary.<br><br>
+                <strong>Capture:</strong> Completion of a full sequence of <strong>5</strong> windows (horizontal) or
+                <strong>7</strong> windows (vertical) initiates a capture event. The player holding the
+                <strong>majority</strong>
+                of illuminated fields within that sequence secures the entire line.<br><br>
+                <strong>Split Capture:</strong> Should a move finalize multiple sequences simultaneously, each is
+                evaluated
+                independently for majority. The <strong>trigger field</strong> remains secure from capture provided it
+                contributes to at least one sequence won by the active player.
             </div>
-            <button onclick="document.getElementById('rules-modal').style.display='none'">Understood</button>
+            <button onclick="document.getElementById('rules-modal').style.display='none'">Close</button>
         </div>
     </div>
 
