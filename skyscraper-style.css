@@ -214,6 +214,35 @@ button:hover {
     color: #000;
 }
 
+.ai-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.ai-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-gold);
+    display: none;
+    flex-direction: column;
+    width: 200px;
+    margin-bottom: 10px;
+}
+
+.ai-menu button {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid rgba(197, 160, 89, 0.2);
+    padding: 12px;
+}
+
+.ai-menu.visible {
+    display: flex;
+}
+
 button.active {
     background: var(--accent-gold);
     color: #000;

@@ -140,12 +140,13 @@ class SkyscraperGame {
     makeMove(x, y) {
         if (this.gameOver || !this.validMoves.some(m => m.x === x && m.y === y)) return false;
         this.setGlobally(x, y, this.turn);
-        this.getSyncedCells(x, y).forEach(c => this.resolveLines(c.x, c.y));
+        this.resolveLines(x, y);
         this.nextTurn();
         return true;
     }
 
     nextTurn() {
+        const lastPlayer = this.turn;
         this.turn = this.turn === 'ivory' ? 'onyx' : 'ivory';
         this.updateValidMoves();
 
@@ -161,56 +162,159 @@ class SkyscraperGame {
         }
         this.updateScore();
         if (this.onStateChange) this.onStateChange();
+
+        // AI Turn
+        if (!this.gameOver && this.aiDifficulty && this.turn === 'onyx') {
+            setTimeout(() => {
+                const move = SkyscraperAI.getMove(this, this.aiDifficulty);
+                if (move) this.makeMove(move.x, move.y);
+            }, 600);
+        }
     }
 
     resolveLines(startX, startY) {
+        // We evaluate all three axes for the trigger stone.
+        // Rule: If you close multiple lines, you get those you won majority in.
+        // Importantly, the trigger stone stays your color if you won ANY of those lines.
+
         const s3 = this.get3DCoords(startX, startY);
         const axes = ['u', 'v', 'w'];
+        const triggerPlayer = this.turn;
+
+        let ivoryCaptures = new Set();
+        let onyxCaptures = new Set();
+        let triggerWonByPlayer = false;
 
         axes.forEach(axis => {
             let line = [];
             const lineLength = (axis === 'w' ? 7 : 5);
 
-            // Find all possible blocks along this 3D axis
             for (let i = 0; i < lineLength; i++) {
                 let coords = { ...s3 };
                 coords[axis] = i;
                 const cells = this.get2DFrom3D(coords.u, coords.v, coords.w);
-                if (cells.length > 0) {
-                    line.push({ coords, cells });
-                }
+                if (cells.length > 0) line.push(cells[0]);
             }
 
-            // Only capture if the entire line is fully filled (no empty slots)
             if (line.length === lineLength) {
-                let ivoryCount = 0;
-                let onyxCount = 0;
-                let isFull = true;
-
-                line.forEach(block => {
-                    const c = block.cells[0];
+                let ivoryCount = 0, onyxCount = 0, isFull = true;
+                line.forEach(c => {
                     const color = this.grid[c.x][c.y];
                     if (!color) isFull = false;
                     if (color === 'ivory') ivoryCount++;
                     else if (color === 'onyx') onyxCount++;
                 });
 
-                if (isFull) {
-                    const winner = ivoryCount > onyxCount ? 'ivory' : (onyxCount > ivoryCount ? 'onyx' : null);
-                    if (winner) {
-                        line.forEach(block => {
-                            block.cells.forEach(c => this.setGlobally(c.x, c.y, winner));
-                        });
-                    }
+                if (isFull && ivoryCount !== onyxCount) {
+                    const winner = ivoryCount > onyxCount ? 'ivory' : 'onyx';
+                    line.forEach(c => {
+                        const key = `${c.x},${c.y}`;
+                        if (winner === 'ivory') ivoryCaptures.add(key);
+                        else onyxCaptures.add(key);
+                    });
+                    if (winner === triggerPlayer) triggerWonByPlayer = true;
                 }
             }
         });
+
+        // Apply captures
+        ivoryCaptures.forEach(key => {
+            const [x, y] = key.split(',').map(Number);
+            this.setGlobally(x, y, 'ivory');
+        });
+        onyxCaptures.forEach(key => {
+            const [x, y] = key.split(',').map(Number);
+            this.setGlobally(x, y, 'onyx');
+        });
+
+        // Invincible trigger stone: if you won at least one line, the stone you placed stays yours
+        if (triggerWonByPlayer) {
+            this.setGlobally(startX, startY, triggerPlayer);
+        }
     }
 
     updateScore() {
         let i = 0, o = 0;
         for (let x = 0; x < 19; x++) { for (let y = 0; y < 19; y++) { if (this.grid[x][y] === 'ivory') i++; else if (this.grid[x][y] === 'onyx') o++; } }
         this.scores = { ivory: i, onyx: o };
+    }
+}
+
+class SkyscraperAI {
+    static getMove(game, difficulty) {
+        const moves = game.validMoves;
+        if (moves.length === 0) return null;
+
+        if (difficulty === 'easy') {
+            return moves[Math.floor(Math.random() * moves.length)];
+        }
+
+        if (difficulty === 'medium' || difficulty === 'hard') {
+            // Heuristic evaluation
+            let bestMove = null;
+            let bestScore = -Infinity;
+
+            for (const move of moves) {
+                let score = 0;
+
+                // 1. Check if move completes a line (Greedy)
+                if (this.wouldCompleteLine(game, move.x, move.y)) score += 100;
+
+                // 2. Proximity to existing stones (Clustering)
+                const distance = this.getMinDistanceToOwn(game, move.x, move.y);
+                score += (10 - distance);
+
+                // 3. Blocking opponent connections (Shadowing)
+                if (this.isBlockingOpponent(game, move.x, move.y)) score += 50;
+
+                if (difficulty === 'hard') {
+                    // 4. Centrality (Roof is better usually)
+                    const zone = game.getZone(move.x, move.y);
+                    if (zone === 'center') score += 20;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+            return bestMove || moves[0];
+        }
+        return moves[0];
+    }
+
+    static wouldCompleteLine(game, x, y) {
+        const s3 = game.get3DCoords(x, y);
+        const axes = ['u', 'v', 'w'];
+        return axes.some(axis => {
+            const len = axis === 'w' ? 7 : 5;
+            let filled = 0;
+            for (let i = 0; i < len; i++) {
+                let coords = { ...s3 }; coords[axis] = i;
+                const cells = game.get2DFrom3D(coords.u, coords.v, coords.w);
+                if (cells.length > 0 && game.grid[cells[0].x][cells[0].y] !== null) filled++;
+            }
+            return filled === len - 1;
+        });
+    }
+
+    static getMinDistanceToOwn(game, x, y) {
+        let min = 20;
+        for (let ix = 0; ix < 19; ix++) {
+            for (let iy = 0; iy < 19; iy++) {
+                if (game.grid[ix][iy] === 'onyx') {
+                    const d = Math.abs(x - ix) + Math.abs(y - iy);
+                    if (d < min) min = d;
+                }
+            }
+        }
+        return min;
+    }
+
+    static isBlockingOpponent(game, x, y) {
+        // Simple check: are we next to an ivory stone
+        const neighbors = [{ x: x + 1, y: y }, { x: x - 1, y: y }, { x: x, y: y + 1 }, { x: x, y: y - 1 }];
+        return neighbors.some(n => n.x >= 0 && n.x < 19 && n.y >= 0 && n.y < 19 && game.grid[n.x][n.y] === 'ivory');
     }
 }
 
@@ -600,6 +704,20 @@ document.addEventListener('DOMContentLoaded', () => {
         header.classList.toggle('visible');
         hud.classList.toggle('visible');
     };
+
+    const aiBtn = document.getElementById('ai-btn');
+    const aiMenu = document.getElementById('ai-menu');
+    aiBtn.onclick = () => aiMenu.classList.toggle('visible');
+
+    aiMenu.querySelectorAll('button').forEach(btn => {
+        btn.onclick = () => {
+            const diff = btn.getAttribute('data-diff');
+            game.aiDifficulty = diff === 'none' ? null : diff;
+            aiBtn.textContent = btn.textContent;
+            aiMenu.classList.remove('visible');
+            game.reset();
+        };
+    });
 
     document.getElementById('toggle-2d').onclick = () => {
         document.getElementById('canvas2d').style.display = 'block';

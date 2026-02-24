@@ -41,6 +41,15 @@
             <div class="controls">
                 <button id="toggle-2d">2D View</button>
                 <button id="toggle-3d" class="active">3D View</button>
+                <div class="ai-dropdown">
+                    <button id="ai-btn">Human vs Human</button>
+                    <div class="ai-menu" id="ai-menu">
+                        <button data-diff="none">Human vs Human</button>
+                        <button data-diff="easy">AI Opponent: Easy</button>
+                        <button data-diff="medium">AI Opponent: Medium</button>
+                        <button data-diff="hard">AI Opponent: Hard</button>
+                    </div>
+                </div>
                 <button id="rules-btn">Rules</button>
                 <button id="reset-btn">Reset</button>
             </div>
@@ -75,9 +84,14 @@
                 through the 3D grid to another stone of your color.<br><br>
                 <strong>Shadow Rule:</strong> Opponent windows <strong>block</strong> your light. You cannot project
                 connections through enemy-occupied spaces.<br><br>
-                <strong>Capture:</strong> Forming a complete horizontal line of <strong>5</strong> windows or a vertical
-                line of <strong>7</strong> windows converts those windows to your dominance. No diagonal captures
-                possible.
+                <strong>Capture:</strong> Forming a complete line of <strong>5</strong> windows (horizontal) or
+                <strong>7</strong> windows (vertical) triggers a capture. The player with the <strong>majority</strong>
+                of stones in that line claims all fields in it.<br><br>
+                <strong>Split Capture:</strong> If a move closes multiple lines simultaneously, each is evaluated for
+                majority. This reflects the building's structural integrity across different axes.<br><br>
+                <strong>Invincibility:</strong> When closing multiple lines, the <strong>trigger stone</strong> you
+                placed is safe from being captured by the opponent, provided you won at least one of the lines it
+                completed.
             </div>
             <button onclick="document.getElementById('rules-modal').style.display='none'">Understood</button>
         </div>
