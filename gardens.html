@@ -70,6 +70,7 @@
     <div class="action-buttons">
         <button id="cancel-button" class="action-btn cancel-btn hidden">Cancel Move</button>
         <button id="reset-button" class="action-btn reset-btn">New Game</button>
+        <button id="rules-btn" class="action-btn rules-btn">Rules</button>
     </div>
 
     <div id="message-box" class="message-box hidden"></div>
@@ -83,6 +84,61 @@
         </div>
     </div>
 
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="rules-modal hidden">
+        <div class="rules-overlay" id="rules-overlay"></div>
+        <div class="rules-content">
+            <h2>Gardens Rules</h2>
+            <div class="rules-body">
+                <p><strong>GOAL</strong>
+                    Place 7 stones of your color into the High Garden to win.</p>
+
+                <p><strong>SETUP</strong>
+                    Colors are assigned at random. 10 stones of each color are automatically placed in their Home
+                    Gardens (the long side fields) on the lower level.</p>
+
+                <p><strong>GAMEPLAY</strong>
+                    White moves first. Players alternate turns.</p>
+
+                <p><strong>MOVEMENT</strong>
+                    On your first turn, pick 1–5 stones of your color to move as a group. As you move, drop the lowest
+                    stone on each field you enter. Stones move horizontally or vertically — not diagonally, and not
+                    backwards. You may drop multiple stones on the same field. Direct back-and-forth between two fields
+                    in a single move is not allowed.</p>
+
+                <p><strong>STACKING</strong>
+                    Stacking extra stones onto a field is only allowed in your own Home Garden or in the opposing High
+                    Garden, and only with stones of your own color.</p>
+
+                <p><strong>CAPTURING</strong>
+                    Drop one of your stones onto an opponent's stone to capture it. The color on top of a stack is in
+                    control and may use the stones below for future movement. Stones are safe from capture while inside
+                    any Home Garden or High Garden.</p>
+
+                <p><strong>TOWER RULES</strong>
+                    A tower cannot exceed 5 stones. A field with a full tower (5 stones) is inaccessible to all other
+                    stones.</p>
+
+                <p><strong>STAIRCASES</strong>
+                    Two staircases connect Home Gardens to High Gardens. When stones enter a Home Garden, the turn ends
+                    immediately. Between turns, stones matching the staircase color that hold the majority in a Home
+                    Garden pass through automatically to the High Garden.<br>
+                    <em>Example: Black places 4 stones in White's Home Garden (White has 2 there). Black's turn ends — 2
+                        Black stones rise to the High Garden. White moves out with their 2 stones. White's turn ends —
+                        the remaining 2 Black stones also rise.</em>
+                </p>
+
+                <p><strong>SPECIAL RULE</strong>
+                    If a player cannot make any move, they select a tower containing their color and place those stones
+                    on top of that tower.</p>
+
+                <p><strong>WINNING</strong>
+                    The first player to successfully place 7 stones of their color in the High Garden wins.</p>
+            </div>
+            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
+        </div>
+    </div>
+
     <footer class="game-footer">
         <p><a href="https://sevenwondersgames.com"
                 style="color: inherit; text-decoration: none;">SevenWondersGames.com</a></p>
@@ -90,6 +146,17 @@
     </footer>
 
     <script src="gardens-game.js"></script>
+    <script>
+        document.getElementById('rules-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.remove('hidden');
+        });
+        document.getElementById('rules-close-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+        document.getElementById('rules-overlay').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+    </script>
 </body>
 
 </html>

@@ -54,8 +54,52 @@
         </div>
     </div>
 
-    <!-- Reset Button -->
-    <button id="reset-button-main" class="action-btn reset-btn" style="margin-top: 20px;">New Game</button>
+    <!-- Reset / Rules Buttons -->
+    <div style="display:flex; gap:12px; justify-content:center; margin-top:20px;">
+        <button id="reset-button-main" class="action-btn reset-btn">New Game</button>
+        <button id="rules-btn" class="action-btn rules-btn">Rules</button>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="rules-modal hidden">
+        <div class="rules-overlay" id="rules-overlay"></div>
+        <div class="rules-content">
+            <h2>Statue Rules</h2>
+            <div class="rules-body">
+                <p><strong>GOAL</strong>
+                    Reduce your opponent's dice on the board to fewer than three through attacks.</p>
+
+                <p><strong>SETUP</strong>
+                    Both players receive 8 dice of their color. All dice begin in the Statue of Zeus reserve (off the
+                    board). White moves first.</p>
+
+                <p><strong>GAMEPLAY</strong>
+                    On each turn, choose one of three actions:</p>
+
+                <p><strong>1 — PLACE A DIE</strong>
+                    Place one die from your reserve onto any unoccupied field. Newly placed dice always start with a
+                    face value of 1.</p>
+
+                <p><strong>2 — STRIDE WITH A DIE</strong>
+                    Move one of your dice horizontally or vertically a number of spaces equal to its face value. If it
+                    lands on an opponent's die, that die is removed — the moving die may continue its remaining movement
+                    and attack multiple opponents in one turn. After each move, the die's value increases by 1. Reaching
+                    6 resets it back to 1.
+                    <br><em>Dice cannot move through or land on dice of the same color. Only one die per field.</em>
+                </p>
+
+                <p><strong>3 — DIMINISH</strong>
+                    Reduce the face value of any of your dice that shows more than 1 by one pip. The opponent is then
+                    forced to move any of their dice currently showing a 1. This action can only be used if the opponent
+                    has dice showing 1 that are able to move.</p>
+
+                <p><strong>WINNING</strong>
+                    The game ends immediately when a player is reduced to fewer than 3 dice on the board. That player
+                    loses.</p>
+            </div>
+            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="game-footer">
@@ -65,6 +109,17 @@
     </footer>
 
     <script src="statue-game.js"></script>
+    <script>
+        document.getElementById('rules-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.remove('hidden');
+        });
+        document.getElementById('rules-close-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+        document.getElementById('rules-overlay').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+    </script>
 </body>
 
 </html>

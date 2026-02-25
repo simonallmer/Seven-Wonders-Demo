@@ -37,14 +37,52 @@
         <svg id="game-board" viewBox="0 0 100 100"></svg>
     </div>
 
-    <!-- Reset Button -->
-    <button id="reset-button" class="action-btn">New Game</button>
+    <!-- Reset / Rules Buttons -->
+    <div style="display:flex; gap:12px; justify-content:center;">
+        <button id="reset-button" class="action-btn">New Game</button>
+        <button id="rules-btn" class="action-btn rules-btn">Rules</button>
+    </div>
 
     <!-- Message Box (Game Over) -->
     <div id="message-box" class="message-overlay">
         <div class="message-content">
             <h2 id="message-title" class="message-title"></h2>
             <p id="message-text" class="message-text"></p>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="rules-modal" style="display:none;">
+        <div class="rules-overlay" id="rules-overlay"></div>
+        <div class="rules-content">
+            <h2>Mausoleum Rules</h2>
+            <div class="rules-body">
+                <p><strong>GOAL</strong>
+                    Reduce the opponent's stones to fewer than four by forming circles. The first player to achieve this
+                    wins.</p>
+
+                <p><strong>SETUP</strong>
+                    Each player receives 9 stones. They are automatically placed on the two shortest rows on each
+                    player's side of the board. The starting player is determined randomly.</p>
+
+                <p><strong>GLIDE</strong>
+                    On your turn, move one stone in a straight line. It continues in that direction until it hits the
+                    edge of the board or a stone blocks its path — stopping on the space immediately before. No two
+                    stones may share a space.</p>
+
+                <p><strong>CIRCLE</strong>
+                    A stone is fully encircled when it has no adjacent empty spaces. A fully encircled stone is removed
+                    if it is surrounded by more opponent stones than friendly stones. If a stone has only one free
+                    adjacent field remaining, it is trapped and unable to move.
+                    <br><em>Fewer stones are needed to complete a circle or trap along the edge of the board.</em>
+                    <br><em>If two circles are formed in one turn, both are resolved simultaneously.</em>
+                </p>
+
+                <p><strong>WINNING</strong>
+                    The game ends immediately when a player is reduced to fewer than 4 stones. That player loses. If
+                    both players fall below 4 stones on the same turn, the game is a draw.</p>
+            </div>
+            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
         </div>
     </div>
 
@@ -56,6 +94,17 @@
     </footer>
 
     <script src="mausoleum-game.js"></script>
+    <script>
+        document.getElementById('rules-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').style.display = 'flex';
+        });
+        document.getElementById('rules-close-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+        document.getElementById('rules-overlay').addEventListener('click', function () {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+    </script>
 </body>
 
 </html>

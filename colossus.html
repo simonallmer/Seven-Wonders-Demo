@@ -46,6 +46,7 @@
         <button id="reset-button" class="action-btn reset-btn">
             New Game
         </button>
+        <button id="rules-btn" class="action-btn rules-btn">Rules</button>
     </div>
 
     <!-- Message Box -->
@@ -62,6 +63,51 @@
         </div>
     </div>
 
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="rules-modal hidden">
+        <div class="rules-overlay" id="rules-overlay"></div>
+        <div class="rules-content">
+            <h2>Colossus Rules</h2>
+            <div class="rules-body">
+                <p><strong>GOAL</strong>
+                    Reduce your opponent to fewer than four stones by enclosing their stones to form a Hades, removing
+                    them from the game.</p>
+
+                <p><strong>SETUP</strong>
+                    Stones are automatically placed in the starting layout. White moves first, then players alternate.
+                </p>
+
+                <p><strong>1 — RUN</strong>
+                    Move a stone forward in a straight line to an unoccupied field. The stone cannot pass through or
+                    share a field with other stones.</p>
+
+                <p><strong>2 — PUSH</strong>
+                    Take the place of an adjacent stone, pushing it one field forward. A pushed stone cannot push back
+                    on the very next turn.</p>
+
+                <p><strong>HADES</strong>
+                    A Hades forms when one or more enemy stones are completely surrounded horizontally and vertically
+                    with no adjacent empty fields. All enclosed stones are immediately removed. Hades can occur during
+                    normal movement or during a Tilt. After a Hades occurs, stones do not slide further that turn.</p>
+
+                <p><strong>TILTING</strong>
+                    If a stone ends its move on a direction field, the board tilts that way — all stones slide toward
+                    that field until blocked by another stone or the edge. Stones enclosed during the slide form a
+                    Hades. If a stone lands on another direction field during the slide, the board tilts again.
+                    <br><em>The tilt is in effect as long as direction fields are occupied, and occurs after every
+                        movement.</em>
+                    <br><em>Two opposite direction fields active simultaneously: no tilt.</em>
+                    <br><em>Two adjacent direction fields active: the active player decides which tilt triggers
+                        first.</em>
+                </p>
+
+                <p><strong>WINNING</strong>
+                    The game ends immediately when a player is reduced to fewer than 4 stones. The opponent wins.</p>
+            </div>
+            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="game-footer">
         <p><a href="https://sevenwondersgames.com"
@@ -70,6 +116,17 @@
     </footer>
 
     <script src="colossus-game.js"></script>
+    <script>
+        document.getElementById('rules-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.remove('hidden');
+        });
+        document.getElementById('rules-close-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+        document.getElementById('rules-overlay').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+    </script>
 </body>
 
 </html>

@@ -40,6 +40,7 @@
         <button id="reset-button" class="action-btn reset-btn">
             New Game
         </button>
+        <button id="rules-btn" class="action-btn rules-btn">Rules</button>
     </div>
 
     <!-- Message Box -->
@@ -55,6 +56,45 @@
         </div>
     </div>
 
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="rules-modal hidden">
+        <div class="rules-overlay" id="rules-overlay"></div>
+        <div class="rules-content">
+            <h2>Temple Rules</h2>
+            <div class="rules-body">
+                <p><strong>GOAL</strong>
+                    Bring one of your stones to the marked Artemis field on the opposite side of the board.</p>
+
+                <p><strong>SETUP</strong>
+                    Each player's 9 stones are automatically placed in the triangle surrounding their own Artemis field
+                    — 3 lines of stones at the start.</p>
+
+                <p><strong>GAMEPLAY</strong>
+                    White moves first. Players alternate turns. Each stone has two options:</p>
+
+                <p><strong>1 — WALK</strong>
+                    Move the stone to an unoccupied adjacent field by following the path. A stone can only move forwards
+                    or sideways — never backwards.</p>
+
+                <p><strong>2 — LEAP</strong>
+                    Leap over an adjacent stone to land on an unoccupied field beyond it. If you leap over an
+                    <em>opponent's</em> stone, that stone is removed. If you leap over a stone of your <em>own</em>
+                    color, nothing happens to it.
+                    <br>You may leap over more than one stone in a single turn, provided you always land on an
+                    unoccupied field in between. The direction may change by up to 45° after each landing. Stones cannot
+                    leap over 2 or more stones standing next to each other.
+                    <br><em>Leap of Faith:</em> A leap may also carry a stone outside the Temple entirely — that stone
+                    is then removed from the game.
+                </p>
+
+                <p><strong>WINNING</strong>
+                    The first player to place a stone on the opposing Artemis field wins. If a threefold repetition
+                    occurs, the game ends in a draw. A player may also concede at any time by skipping their turn.</p>
+            </div>
+            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="game-footer">
         <p><a href="https://sevenwondersgames.com"
@@ -63,6 +103,17 @@
     </footer>
 
     <script src="temple-game.js"></script>
+    <script>
+        document.getElementById('rules-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.remove('hidden');
+        });
+        document.getElementById('rules-close-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+        document.getElementById('rules-overlay').addEventListener('click', function () {
+            document.getElementById('rules-modal').classList.add('hidden');
+        });
+    </script>
 </body>
 
 </html>
