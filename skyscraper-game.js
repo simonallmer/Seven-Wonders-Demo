@@ -526,7 +526,6 @@ class View3D {
 
         this.createSkyscraper();
         this.createCityGrid();
-        this.createCityBackground();
         this.createRain();
         this.setupRaycaster();
         this.setupKeyboard();
@@ -644,27 +643,6 @@ class View3D {
                 }
             }
         }
-    }
-
-    createCityBackground() {
-        const loader = new THREE.TextureLoader();
-        loader.load('skyscraper-bg.png', (texture) => {
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.repeat.set(4, 1);
-
-            // Large cylinder surrounding the playable area
-            const geometry = new THREE.CylinderGeometry(150, 150, 80, 48);
-            const material = new THREE.MeshBasicMaterial({
-                map: texture,
-                side: THREE.BackSide,
-                transparent: true,
-                opacity: 0.95,
-                fog: false
-            });
-            const city = new THREE.Mesh(geometry, material);
-            city.position.y = 10;
-            this.scene.add(city);
-        });
     }
     createSkyscraper() {
         const classicMat = new THREE.MeshPhysicalMaterial({
