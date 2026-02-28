@@ -27,6 +27,7 @@
 
     <div id="game-layout">
         <div id="view-container">
+            <canvas id="canvas2d"></canvas>
             <div id="canvas3d"></div>
         </div>
 
@@ -53,6 +54,13 @@
                         <button data-diff="easy">Computer: Easy</button>
                         <button data-diff="medium">Computer: Medium</button>
                         <button data-diff="hard">Computer: Hard</button>
+                    </div>
+                </div>
+                <div class="view-dropdown">
+                    <button id="view-btn">View: 3D</button>
+                    <div class="view-menu" id="view-menu">
+                        <button id="btn-view-3d" data-view="3d">3D View</button>
+                        <button id="btn-view-2d" data-view="2d">2D View</button>
                     </div>
                 </div>
                 <button id="rules-btn">Rules</button>
@@ -107,15 +115,18 @@
                 cannot be
                 established through sectors occupied by the adversary.<br><br>
                 <strong>Capture:</strong> Completion of a full sequence of <strong>5</strong> windows on the same block
-                initiates a capture event. The player holding the
-                <strong>majority</strong>
-                of illuminated fields within that sequence secures the entire line.<br><br>
+                initiates a capture event. The player holding the <strong>majority</strong> of illuminated fields within
+                that sequence secures the entire line.<br><br>
                 <strong>Split Capture:</strong> Should a move finalize multiple sequences simultaneously, each is
-                evaluated
-                independently for majority. The <strong>trigger field</strong> remains secure from capture provided it
-                contributes to at least one sequence won by the active player.
+                evaluated independently for majority. The <strong>trigger field</strong> remains secure from capture
+                provided it contributes to at least one sequence won by the active player.<br><br>
+                <strong>Elevator:</strong> Accessibility to higher floors is restricted by the elevator height. Each
+                round (after all players have moved), the elevator rises by <strong>1 floor</strong>, gradually opening
+                the top of
+                the structure.
             </div>
-            <button onclick="document.getElementById('rules-modal').style.display='none'">Close</button>
+            <button onclick="document.getElementById('rules-modal').style.display='none'"
+                style="margin: 20px auto; display: flex;">Close</button>
         </div>
     </div>
 

@@ -229,7 +229,11 @@ h1 {
 }
 
 button {
-    padding: 8px 16px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
     background: rgba(197, 160, 89, 0.1);
     color: var(--accent-gold);
     border: 1px solid var(--accent-gold);
@@ -239,6 +243,7 @@ button {
     letter-spacing: 2px;
     cursor: pointer;
     transition: all 0.3s ease;
+    box-sizing: border-box;
 }
 
 button:hover {
@@ -247,13 +252,15 @@ button:hover {
 }
 
 .ai-dropdown,
-.mode-dropdown {
+.mode-dropdown,
+.view-dropdown {
     position: relative;
     display: inline-block;
 }
 
 .ai-menu,
-.mode-menu {
+.mode-menu,
+.view-menu {
     position: absolute !important;
     bottom: calc(100% + 15px) !important;
     left: 50% !important;
@@ -268,7 +275,8 @@ button:hover {
 }
 
 .ai-menu button,
-.mode-menu button {
+.mode-menu button,
+.view-menu button {
     width: 100%;
     border: none;
     border-bottom: 1px solid rgba(197, 160, 89, 0.2);
@@ -276,7 +284,8 @@ button:hover {
 }
 
 .ai-menu.visible,
-.mode-menu.visible {
+.mode-menu.visible,
+.view-menu.visible {
     display: flex;
 }
 

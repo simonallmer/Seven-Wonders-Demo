@@ -6,13 +6,14 @@ class SkyscraperGame {
 
     setMode(numPlayers) {
         this.numPlayers = numPlayers;
-        this.H = 9;
+        this.H = 9; // Total floors = 10 (0-9). Roof is at H=9.
         this.wStart = numPlayers === 2 ? 5 : 0;
         this.gridSize = 2 * this.H + 5;
         this.colors = ['white', 'red', 'blue', 'green'].slice(0, numPlayers);
         this.totalPlayableCells = ((this.H - this.wStart) * 5 * 4) + (5 * 5); // 4 sides + roof
         this.winThreshold = Math.floor(this.totalPlayableCells / this.numPlayers) + 1;
         this.onStateChange = null;
+        this.turnCount = 0;
         this.reset();
     }
 
@@ -24,6 +25,7 @@ class SkyscraperGame {
         this.lastMove = null;
         this.scores = {};
         this.colors.forEach(c => this.scores[c] = 0);
+        this.turnCount = 0;
 
         const H = this.H;
         const ws = this.wStart;
@@ -35,6 +37,16 @@ class SkyscraperGame {
         this.updateValidMoves();
         this.updateScore();
         if (this.onStateChange) this.onStateChange();
+    }
+
+    get currentRound() {
+        return Math.floor(this.turnCount / this.numPlayers) + 1;
+    }
+
+    get elevatorHeight() {
+        // Accessibility starts at ws and increases by 1 floor per round.
+        // Round 1 allows building up to ws + 1.
+        return this.wStart + this.currentRound;
     }
 
     isValidCell(x, y) {
@@ -109,9 +121,14 @@ class SkyscraperGame {
                 if (this.grid[x][y] === pColor) pStones.push({ x, y });
             }
         }
+        const limit = this.elevatorHeight;
         for (let x = 0; x < this.gridSize; x++) {
             for (let y = 0; y < this.gridSize; y++) {
                 if (!this.isValidCell(x, y) || this.grid[x][y] !== null) continue;
+
+                const coords = this.get3DCoords(x, y);
+                if (coords.w > limit) continue;
+
                 if (pStones.some(s => this.checkConnection(s, { x, y }) && !this.isPathBlocked(s, { x, y }))) {
                     this.validMoves.push({ x, y });
                 }
@@ -156,6 +173,7 @@ class SkyscraperGame {
     }
 
     nextTurn() {
+        this.turnCount++;
         this.turnIndex = (this.turnIndex + 1) % this.numPlayers;
         this.turn = this.colors[this.turnIndex];
         this.updateValidMoves();
@@ -349,71 +367,99 @@ class SkyscraperAI {
     }
 }
 
-/* --- 2D Implementation (Reserved for Background/Future Use) ---
+// --- 2D Implementation ---
 class View2D {
     constructor(canvas, game) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.game = game;
-        this.colors = { white: '#FDF5E6', red: '#FF4D4D', blue: '#0077FF', green: '#00FF00', structure: '#1A1A1A', neutral: '#1a1a1a', highlight: 'rgba(120, 90, 40, 0.4)', lastMove: 'rgba(255, 255, 0, 0.5)' };
+        this.colors = {
+            white: '#FDF5E6', red: '#FF4D4D', blue: '#0077FF', green: '#00FF00',
+            structure: '#0a0a0a', neutral: '#1a1a1a', highlight: 'rgba(197, 160, 89, 0.4)',
+            lastMove: '#FFFF00', deco: '#8A6D3B'
+        };
     }
     resize() {
         const rect = this.canvas.parentElement.getBoundingClientRect();
         const size = Math.min(rect.width, rect.height);
         this.canvas.width = size; this.canvas.height = size;
-        this.cellSize = size / this.game.gridSize;
+        this.viewGridSize = this.game.numPlayers === 2 ? 15 : 25;
+        this.cellSize = size / this.viewGridSize;
         this.draw();
     }
+
+    getCanvasPos(u, v, w) {
+        const H = 9;
+        const offset = this.game.numPlayers === 2 ? 1 : 2;
+        if (w === H) return { x: offset * 5 + u, y: offset * 5 + v };
+
+        const isHigh = w >= 5;
+        const distFromCenter = isHigh ? 1 : 2;
+        let blockX = offset, blockY = offset;
+        let innerX = u, innerY = v;
+
+        if (v === 0) { blockY -= distFromCenter; innerY = 4 - (w % 5); }
+        else if (v === 4) { blockY += distFromCenter; innerY = w % 5; }
+        else if (u === 0) { blockX -= distFromCenter; innerX = 4 - (w % 5); }
+        else if (u === 4) { blockX += distFromCenter; innerX = w % 5; }
+        else return null;
+
+        return { x: blockX * 5 + innerX, y: blockY * 5 + innerY };
+    }
+
     draw() {
         if (!this.ctx) return;
-        const ctx = this.ctx, c = this.cellSize;
-        const H = this.game.H;
-        const GS = this.game.gridSize;
+        const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        ctx.fillStyle = this.colors.structure;
-        ctx.fillRect(H * c, 0, 5 * c, GS * c); ctx.fillRect(0, H * c, GS * c, 5 * c);
-        for (let x = 0; x < GS; x++) {
-            for (let y = 0; y < GS; y++) {
-                const isStructural = (x >= H && x <= H + 4) || (y >= H && y <= H + 4);
-                if (!isStructural) continue;
 
-                const isValid = this.game.isValidCell(x, y);
-                let state = this.game.grid[x][y], px = x * c, py = y * c;
+        // Coming Soon Overlay (Full Field Greyed Out)
+        ctx.fillStyle = 'rgba(10, 10, 10, 1.0)';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-                if (!isValid) {
-                    ctx.fillStyle = '#080808'; // Very dark for non-playable areas
-                    ctx.fillRect(px + 0.5, py + 0.5, c - 1, c - 1);
-                    continue;
-                }
+        ctx.fillStyle = '#C5A059';
+        ctx.font = 'bold ' + (this.canvas.width / 12) + 'px "Playfair Display", serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.letterSpacing = '12px';
+        ctx.fillText('COMING SOON', this.canvas.width / 2, this.canvas.height / 2);
 
-                ctx.fillStyle = this.colors.neutral;
-                if (state === 'white') { ctx.fillStyle = this.colors.white; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.white; }
-                else if (state === 'red') { ctx.fillStyle = this.colors.red; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.red; }
-                else if (state === 'blue') { ctx.fillStyle = this.colors.blue; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.blue; }
-                else if (state === 'green') { ctx.fillStyle = this.colors.green; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.green; }
-                else if (this.game.validMoves.some(m => m.x === x && m.y === y)) {
-                    ctx.fillStyle = this.colors.highlight;
-                    ctx.strokeStyle = 'rgba(138, 109, 59, 0.6)'; // Darker bronze border
-                    ctx.strokeRect(px + 0.5, py + 0.5, c - 1, c - 1);
-                }
+        // Add a subtle gold border to the placeholder
+        ctx.strokeStyle = '#C5A059';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(10, 10, this.canvas.width - 20, this.canvas.height - 20);
+    }
 
-                // Last Move Indicator
-                if (this.game.lastMove && this.game.lastMove.x === x && this.game.lastMove.y === y) {
-                    ctx.shadowBlur = 20;
-                    ctx.shadowColor = '#FFFF00';
-                    ctx.strokeStyle = '#FFFF00';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(px + 2, py + 2, c - 4, c - 4);
-                }
+    drawStitchLines(ctx, c) {
+        const H = 9;
+        const drawLink = (p1_3d, p2_3d) => {
+            const c1 = this.game.get2DFrom3D(p1_3d.u, p1_3d.v, p1_3d.w);
+            const c2 = this.game.get2DFrom3D(p2_3d.u, p2_3d.v, p2_3d.w);
+            if (!c1.length || !c2.length) return;
+            const col1 = this.game.grid[c1[0].x][c1[0].y];
+            const col2 = this.game.grid[c2[0].x][c2[0].y];
 
-                ctx.fillRect(px + 0.5, py + 0.5, c - 1, c - 1);
-                ctx.shadowBlur = 0;
+            if (col1 && col1 === col2) {
+                const pos1 = this.getCanvasPos(p1_3d.u, p1_3d.v, p1_3d.w);
+                const pos2 = this.getCanvasPos(p2_3d.u, p2_3d.v, p2_3d.w);
+                if (!pos1 || !pos2) return;
+                ctx.strokeStyle = this.colors[col1]; ctx.lineWidth = 1.2;
+                ctx.beginPath(); ctx.moveTo(pos1.x * c + c / 2, pos1.y * c + c / 2); ctx.lineTo(pos2.x * c + c / 2, pos2.y * c + c / 2); ctx.stroke();
+                ctx.fillStyle = this.colors[col1];
+                ctx.beginPath(); ctx.arc(pos1.x * c + c / 2, pos1.y * c + c / 2, 2.5, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(pos2.x * c + c / 2, pos2.y * c + c / 2, 2.5, 0, Math.PI * 2); ctx.fill();
+            }
+        };
+
+        for (let w = 0; w <= H; w++) {
+            for (let i = 0; i < 5; i++) {
+                drawLink({ u: i, v: 0, w: w }, { u: 0, v: i, w: w }); // NW
+                drawLink({ u: i, v: 0, w: w }, { u: 4, v: i, w: w }); // NE
+                drawLink({ u: i, v: 4, w: w }, { u: 0, v: 4 - i, w: w }); // SW
+                drawLink({ u: i, v: 4, w: w }, { u: 4, v: 4 - i, w: w }); // SE
             }
         }
-        ctx.strokeStyle = 'rgba(197,160,89,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(this.game.H * c, this.game.H * c, 5 * c, 5 * c);
     }
 }
-*/
 
 // --- 3D Implementation ---
 class View3D {
@@ -428,7 +474,7 @@ class View3D {
         this.scene.background = new THREE.Color(0x010101);
         this.scene.fog = new THREE.Fog(0x010101, 30, 200);
         this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-        this.camera.position.set(20, 18, 20);
+        this.camera.position.set(22, 28, 22);
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.toneMapping = THREE.ReinhardToneMapping;
         this.container.appendChild(this.renderer.domElement);
@@ -639,12 +685,12 @@ class View3D {
 
                     if (w < this.game.wStart) {
                         const solid = new THREE.Mesh(new THREE.BoxGeometry(0.992, 0.992, 0.992), solidBaseMat);
-                        solid.position.set(u - 2, w + 3.51, v - 2);
+                        solid.position.set(u - 2, w + 7.51, v - 2);
                         this.scene.add(solid);
                         continue;
                     }
                     const block = new THREE.Mesh(new THREE.BoxGeometry(0.992, 0.992, 0.992), classicMat);
-                    block.position.set(u - 2, w + 3.51, v - 2);
+                    block.position.set(u - 2, w + 7.51, v - 2);
                     block.userData = { u, v, w };
                     this.scene.add(block);
                     this.addWindows(u, v, w, block);
@@ -652,25 +698,25 @@ class View3D {
             }
         }
 
-        // Solid Core to prevent "lookthrough" - now styled black like physical game
+        // Solid Core to prevent "lookthrough"
         const core = new THREE.Mesh(new THREE.BoxGeometry(3, H + 1, 3), solidBaseMat);
-        core.position.set(0, (H + 1) / 2 + 3.0, 0);
+        core.position.set(0, (H + 1) / 2 + 7.0, 0);
         this.scene.add(core);
 
-        // Subtle NYC metallic stand with Art Deco stepped corners matching the physical model
-        const standBody = new THREE.Mesh(new THREE.BoxGeometry(5.0, 3.0, 5.0), solidBaseMat);
-        standBody.position.set(0, 1.5, 0); // Center at 1.5, height from 0 to 3.0
+        // Subtle NYC metallic stand - Height increased to 7.0
+        const standBody = new THREE.Mesh(new THREE.BoxGeometry(5.0, 7.0, 5.0), solidBaseMat);
+        standBody.position.set(0, 3.5, 0);
         this.scene.add(standBody);
 
-        // Add the 4 thicker pillars stepping outwards at the exact corners
+        // Add the 4 thicker pillars stepping outwards
         for (let x of [-2.4, 2.4]) {
             for (let z of [-2.4, 2.4]) {
-                const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.0, 1.2), solidBaseMat);
-                pillar.position.set(x, 1.0, z); // Center 1.0, height from 0 to 2.0 (extends outwards by 0.5 units)
+                const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 5.0, 1.2), solidBaseMat);
+                pillar.position.set(x, 2.5, z);
                 this.scene.add(pillar);
 
-                const basePillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 1.6), solidBaseMat);
-                basePillar.position.set(x, 0.3, z); // Step down slightly wider at the bottom
+                const basePillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.0, 1.6), solidBaseMat);
+                basePillar.position.set(x, 1.0, z);
                 this.scene.add(basePillar);
             }
         }
@@ -679,9 +725,9 @@ class View3D {
         standTrim.position.set(0, -0.2, 0);
         this.scene.add(standTrim);
 
-        // Update Spire/Sting to be extremely thin so center field is mostly visible
+        // Update Spire/Sting
         const spH = H * 1.5;
-        const sp1y = H + 3.51 + 0.5 + 2.5;
+        const sp1y = H + 7.51 + 0.5 + 2.5;
         const sp1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.25, 5, 8), solidBaseMat);
         sp1.position.set(0, sp1y, 0);
         this.scene.add(sp1);
@@ -690,14 +736,14 @@ class View3D {
         sp2.position.set(0, sp1y + 2.5 + spH / 2, 0);
         this.scene.add(sp2);
 
-        // Optional sharp sting ring on the needle
+        // Sharp sting ring
         const spRing = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.02, 8, 16), solidBaseMat);
         spRing.position.set(0, sp1y + 2.5 + spH * 0.7, 0);
         spRing.rotation.x = Math.PI / 2;
         this.scene.add(spRing);
 
         const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0x111111 }));
-        beacon.position.set(0, 21.5, 0); this.scene.add(beacon);
+        beacon.position.set(0, H + 7.51 + 5.0, 0); this.scene.add(beacon);
         const light = new THREE.PointLight(0xffffff, 0, 40);
         light.position.copy(beacon.position); this.scene.add(light);
         this.beacon = beacon;
@@ -884,6 +930,7 @@ class View3D {
 // --- App Bootstrap ---
 document.addEventListener('DOMContentLoaded', () => {
     const game = new SkyscraperGame();
+    let v2d = new View2D(document.getElementById('canvas2d'), game);
     let v3d = new View3D(document.getElementById('canvas3d'), game);
 
     const modeBtn = document.getElementById('mode-btn');
@@ -903,6 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (v3d) v3d.destroy();
             v3d = new View3D(document.getElementById('canvas3d'), game);
+            v2d.resize();
             v3d.resize();
             if (game.onStateChange) game.onStateChange();
         };
@@ -915,7 +963,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (elScore) elScore.textContent = game.scores[c] || 0;
             if (elTurn) elTurn.style.opacity = game.turn === c ? '1' : '0.2';
         });
-        v3d.update();
+
+        // Update Elevator Status - No longer displayed on button per request
+        const limit = game.elevatorHeight;
+        const round = game.currentRound;
+
+        v2d.draw(); v3d.update();
         if (game.gameOver) {
             let winColor = 'white';
             let maxSc = -1;
@@ -952,9 +1005,46 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
+    const viewBtn = document.getElementById('view-btn');
+    const viewMenu = document.getElementById('view-menu');
+    viewBtn.onclick = () => viewMenu.classList.toggle('visible');
+
+    viewMenu.querySelectorAll('button').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const viewType = btn.getAttribute('data-view');
+            document.getElementById('canvas2d').style.display = viewType === '2d' ? 'block' : 'none';
+            document.getElementById('canvas3d').style.display = viewType === '3d' ? 'block' : 'none';
+            viewBtn.textContent = 'View: ' + (viewType === '2d' ? '2D' : '3D');
+            viewMenu.classList.remove('visible');
+            if (viewType === '2d') v2d.resize(); else v3d.resize();
+        };
+    });
+
+    document.getElementById('canvas2d').onclick = (e) => {
+        const rect = e.target.getBoundingClientRect();
+        const VGS = v2d.viewGridSize;
+        const vx = Math.floor(((e.clientX - rect.left) / rect.width) * VGS);
+        const vy = Math.floor(((e.clientY - rect.top) / rect.height) * VGS);
+
+        // Anti-mapping: Find which u,v,w this vx,vy corresponds to
+        for (let w = game.wStart; w <= game.H; w++) {
+            for (let u = 0; u < 5; u++) {
+                for (let v = 0; v < 5; v++) {
+                    const pos = v2d.getCanvasPos(u, v, w);
+                    if (pos.x === vx && pos.y === vy) {
+                        const cells = game.get2DFrom3D(u, v, w);
+                        if (cells.length > 0) game.makeMove(cells[0].x, cells[0].y);
+                        return;
+                    }
+                }
+            }
+        }
+    };
+
     document.getElementById('reset-btn').onclick = () => game.reset();
     document.getElementById('rules-btn').onclick = () => document.getElementById('rules-modal').style.display = 'flex';
 
-    window.onresize = () => { if (v3d) v3d.resize(); };
-    setTimeout(() => { if (v3d) v3d.resize(); game.onStateChange(); }, 100);
+    window.onresize = () => { if (v2d) v2d.resize(); if (v3d) v3d.resize(); };
+    setTimeout(() => { v2d.resize(); v3d.resize(); game.onStateChange(); }, 100);
 });
