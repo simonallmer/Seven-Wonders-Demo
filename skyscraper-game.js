@@ -516,14 +516,6 @@ class View3D {
         fillLight.target = fillTarget;
         this.scene.add(fillLight);
 
-        const cityLight1 = new THREE.PointLight(0xffaa44, 2.5, 150);
-        cityLight1.position.set(25, 2, 25);
-        this.scene.add(cityLight1);
-
-        const cityLight2 = new THREE.PointLight(0x4488ff, 1.8, 120);
-        cityLight2.position.set(-25, 3, -25);
-        this.scene.add(cityLight2);
-
         this.createSkyscraper();
         this.createCityGrid();
         this.createRain();
@@ -644,6 +636,7 @@ class View3D {
             }
         }
     }
+
     createSkyscraper() {
         const classicMat = new THREE.MeshPhysicalMaterial({
             color: 0x050505, roughness: 0.05, metalness: 0.8, clearcoat: 1.0, clearcoatRoughness: 0.05
