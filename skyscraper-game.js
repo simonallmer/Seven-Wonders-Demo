@@ -355,7 +355,7 @@ class View2D {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.game = game;
-        this.colors = { white: '#FDF5E6', red: '#FF4D4D', blue: '#0077FF', green: '#00FF00', structure: '#1A1A1A', neutral: '#1a1a1a', highlight: 'rgba(197, 160, 89, 0.3)', lastMove: 'rgba(255, 255, 0, 0.5)' };
+        this.colors = { white: '#FDF5E6', red: '#FF4D4D', blue: '#0077FF', green: '#00FF00', structure: '#1A1A1A', neutral: '#1a1a1a', highlight: 'rgba(120, 90, 40, 0.4)', lastMove: 'rgba(255, 255, 0, 0.5)' };
     }
     resize() {
         const rect = this.canvas.parentElement.getBoundingClientRect();
@@ -374,9 +374,18 @@ class View2D {
         ctx.fillRect(H * c, 0, 5 * c, GS * c); ctx.fillRect(0, H * c, GS * c, 5 * c);
         for (let x = 0; x < GS; x++) {
             for (let y = 0; y < GS; y++) {
-                if (!this.game.isValidCell(x, y)) continue;
+                const isStructural = (x >= H && x <= H + 4) || (y >= H && y <= H + 4);
+                if (!isStructural) continue;
 
+                const isValid = this.game.isValidCell(x, y);
                 let state = this.game.grid[x][y], px = x * c, py = y * c;
+
+                if (!isValid) {
+                    ctx.fillStyle = '#080808'; // Very dark for non-playable areas
+                    ctx.fillRect(px + 0.5, py + 0.5, c - 1, c - 1);
+                    continue;
+                }
+
                 ctx.fillStyle = this.colors.neutral;
                 if (state === 'white') { ctx.fillStyle = this.colors.white; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.white; }
                 else if (state === 'red') { ctx.fillStyle = this.colors.red; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.red; }
@@ -384,7 +393,7 @@ class View2D {
                 else if (state === 'green') { ctx.fillStyle = this.colors.green; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.green; }
                 else if (this.game.validMoves.some(m => m.x === x && m.y === y)) {
                     ctx.fillStyle = this.colors.highlight;
-                    ctx.strokeStyle = 'rgba(197,160,89,0.5)';
+                    ctx.strokeStyle = 'rgba(138, 109, 59, 0.6)'; // Darker bronze border
                     ctx.strokeRect(px + 0.5, py + 0.5, c - 1, c - 1);
                 }
 
@@ -474,7 +483,17 @@ class View3D {
         this.createRain();
         this.setupRaycaster();
         this.setupKeyboard();
+        this.running = true;
         this.animate();
+    }
+    destroy() {
+        this.running = false;
+        if (this.renderer) {
+            this.renderer.dispose();
+            if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+                this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+            }
+        }
     }
     setupKeyboard() {
         this.keys = {};
@@ -793,11 +812,11 @@ class View3D {
         } else if (diff > 1) {
             this.beacon.material.color.setHex(0xFFFFFF);
             this.beaconLight.color.setHex(0xFFFFFF);
-            this.beaconLight.intensity = 8;
+            this.beaconLight.intensity = 1.0; // Minimal glow as requested
         } else {
             this.beacon.material.color.setHex(0xFF0000);
             this.beaconLight.color.setHex(0xFF0000);
-            this.beaconLight.intensity = 15; // Increased red intensity
+            this.beaconLight.intensity = 1.5; // Minimal red glow
         }
 
         this.windowMeshes.forEach((meshes, key) => {
@@ -813,8 +832,8 @@ class View3D {
             else if (cells.some(c => this.game.grid[c.x][c.y] === 'green')) { color = 0x00FF00; glow = true; intensity = 2.5; }
             else if (isValid) {
                 const hoverColor = this.game.turn === 'white' ? 0xFFFFFF : (this.game.turn === 'red' ? 0xFF7777 : (this.game.turn === 'blue' ? 0x77CCFF : 0x77FF77));
-                color = isHovered ? hoverColor : 0xC5A059; // Back to subtle gold/stone hue
-                intensity = isHovered ? 2.5 : 0.4; // Drastically toned down idle glow
+                color = isHovered ? hoverColor : 0x8A6D3B; // Darker gold/bronze
+                intensity = isHovered ? 2.0 : 0.3; // Much lower idle glow
                 glow = true;
             }
 
@@ -845,6 +864,7 @@ class View3D {
         this.camera.updateProjectionMatrix();
     }
     animate() {
+        if (!this.running) return;
         requestAnimationFrame(() => this.animate());
 
         // Camera Controls (WASD + Arrows)
@@ -881,11 +901,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('score-block-blue').style.display = players >= 3 ? 'flex' : 'none';
             document.getElementById('score-block-green').style.display = players >= 4 ? 'flex' : 'none';
 
-            document.getElementById('canvas3d').innerHTML = '';
+            if (v3d) v3d.destroy();
             v3d = new View3D(document.getElementById('canvas3d'), game);
             v2d.resize();
             v3d.resize();
-            game.onStateChange();
+            if (game.onStateChange) game.onStateChange();
         };
     });
 
