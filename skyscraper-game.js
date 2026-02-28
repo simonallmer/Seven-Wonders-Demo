@@ -1,28 +1,37 @@
 // --- Core Game Logic ---
 class SkyscraperGame {
-    constructor() {
-        this.gridSize = 19;
-        this.grid = new Array(this.gridSize).fill(null).map(() => new Array(this.gridSize).fill(null));
-        this.turn = 'white';
-        this.gameOver = false;
-        this.scores = { white: 0, red: 0 };
-        this.validMoves = [];
-        this.lastMove = null;
+    constructor(numPlayers = 2) {
+        this.setMode(numPlayers);
+    }
+
+    setMode(numPlayers) {
+        this.numPlayers = numPlayers;
+        this.H = 9;
+        this.wStart = numPlayers === 2 ? 5 : 0;
+        this.gridSize = 2 * this.H + 5;
+        this.colors = ['white', 'red', 'blue', 'green'].slice(0, numPlayers);
+        this.totalPlayableCells = ((this.H - this.wStart) * 5 * 4) + (5 * 5); // 4 sides + roof
+        this.winThreshold = Math.floor(this.totalPlayableCells / this.numPlayers) + 1;
         this.onStateChange = null;
-        this.totalPlayableCells = 164; // (165 total valid cells - 1 blocked center)
-        this.winThreshold = 83; // Over half of 164
         this.reset();
     }
 
     reset() {
         this.grid = new Array(this.gridSize).fill(null).map(() => new Array(this.gridSize).fill(null));
-        this.turn = 'white';
+        this.turnIndex = 0;
+        this.turn = this.colors[0];
         this.gameOver = false;
         this.lastMove = null;
-        this.setGlobally(9, 0, 'white');
-        this.setGlobally(9, 18, 'white');
-        this.setGlobally(0, 9, 'red');
-        this.setGlobally(18, 9, 'red');
+        this.scores = {};
+        this.colors.forEach(c => this.scores[c] = 0);
+
+        const H = this.H;
+        const ws = this.wStart;
+        this.setGlobally(H + 2, ws, this.colors[0]); // North (White)
+        if (this.numPlayers >= 2) this.setGlobally(H + 2, 2 * H + 4 - ws, this.colors[1]); // South (Red)
+        if (this.numPlayers >= 3) this.setGlobally(2 * H + 4 - ws, H + 2, this.colors[2]); // East (Blue)
+        if (this.numPlayers >= 4) this.setGlobally(ws, H + 2, this.colors[3]); // West (Green)
+
         this.updateValidMoves();
         this.updateScore();
         if (this.onStateChange) this.onStateChange();
@@ -30,87 +39,78 @@ class SkyscraperGame {
 
     isValidCell(x, y) {
         if (x < 0 || x >= this.gridSize || y < 0 || y >= this.gridSize) return false;
-        // Block center of the roof (x: 9, y: 9) to force alternate strategies
-        if (x === 9 && y === 9) return false;
-        const isX = x >= 7 && x <= 11, isY = y >= 7 && y <= 11;
-        return isX || isY;
+        const isX = x >= this.H && x <= this.H + 4, isY = y >= this.H && y <= this.H + 4;
+        if (!(isX || isY)) return false;
+
+        let w;
+        if (isX && isY) return true; // center roof always valid
+        if (isX && y < this.H) w = y;
+        else if (isX && y > this.H + 4) w = (2 * this.H + 4) - y;
+        else if (isY && x < this.H) w = x;
+        else if (isY && x > this.H + 4) w = (2 * this.H + 4) - x;
+
+        return w >= this.wStart;
     }
 
     getZone(x, y) {
-        if (x >= 7 && x <= 11 && y >= 7 && y <= 11) return 'center';
-        if (x >= 7 && x <= 11 && y < 7) return 'north';
-        if (x >= 7 && x <= 11 && y > 11) return 'south';
-        if (y >= 7 && y <= 11 && x < 7) return 'west';
-        if (y >= 7 && y <= 11 && x > 11) return 'east';
+        const H = this.H;
+        if (x >= H && x <= H + 4 && y >= H && y <= H + 4) return 'center';
+        if (x >= H && x <= H + 4 && y < H) return 'north';
+        if (x >= H && x <= H + 4 && y > H + 4) return 'south';
+        if (y >= H && y <= H + 4 && x < H) return 'west';
+        if (y >= H && y <= H + 4 && x > H + 4) return 'east';
         return 'void';
     }
 
     get3DCoords(x, y) {
         const zone = this.getZone(x, y);
+        const H = this.H;
         let u, v, w;
-        if (zone === 'center') { u = x - 7; v = y - 7; w = 6; }
-        else if (zone === 'north') { u = x - 7; v = 0; w = y; }
-        else if (zone === 'south') { u = x - 7; v = 4; w = 18 - y; }
-        else if (zone === 'west') { u = 0; v = y - 7; w = x; }
-        else if (zone === 'east') { u = 4; v = y - 7; w = 18 - x; }
+        if (zone === 'center') { u = x - H; v = y - H; w = H; }
+        else if (zone === 'north') { u = x - H; v = 0; w = y; }
+        else if (zone === 'south') { u = x - H; v = 4; w = (2 * H + 4) - y; }
+        else if (zone === 'west') { u = 0; v = y - H; w = x; }
+        else if (zone === 'east') { u = 4; v = y - H; w = (2 * H + 4) - x; }
         return { u, v, w };
     }
 
     get2DFrom3D(u, v, w) {
+        const H = this.H;
         let cells = [];
-        if (w === 6) cells.push({ x: u + 7, y: v + 7 });
-        if (v === 0) cells.push({ x: u + 7, y: w });
-        if (v === 4) cells.push({ x: u + 7, y: 18 - w });
-        if (u === 0) cells.push({ x: w, y: v + 7 });
-        if (u === 4) cells.push({ x: 18 - w, y: v + 7 });
+        if (w === H) cells.push({ x: u + H, y: v + H });
+        if (v === 0 && w < H) cells.push({ x: u + H, y: w });
+        if (v === 4 && w < H) cells.push({ x: u + H, y: (2 * H + 4) - w });
+        if (u === 0 && w < H) cells.push({ x: w, y: v + H });
+        if (u === 4 && w < H) cells.push({ x: (2 * H + 4) - w, y: v + H });
         return cells.filter(c => this.isValidCell(c.x, c.y) && this.getZone(c.x, c.y) !== 'void');
     }
 
     setGlobally(x, y, color) {
+        if (!this.isValidCell(x, y)) return;
         this.getSyncedCells(x, y).forEach(c => {
             if (this.isValidCell(c.x, c.y)) this.grid[c.x][c.y] = color;
         });
     }
 
     getSyncedCells(startX, startY) {
-        let queue = [{ x: startX, y: startY }], visited = new Set(), synced = [];
-        while (queue.length > 0) {
-            let curr = queue.pop(), key = `${curr.x},${curr.y}`;
-            if (visited.has(key)) continue; visited.add(key); synced.push(curr);
-            this.get3DNeighbors(curr.x, curr.y).forEach(n => { if (!visited.has(`${n.x},${n.y}`)) queue.push(n); });
-        }
-        return synced;
+        const c3 = this.get3DCoords(startX, startY);
+        return this.get2DFrom3D(c3.u, c3.v, c3.w);
     }
 
     get3DNeighbors(x, y) {
-        let n = [];
-        if (y === 6 && (x >= 7 && x <= 11)) n.push({ x: x, y: 7 });
-        if (y === 7 && (x >= 7 && x <= 11)) n.push({ x: x, y: 6 });
-        if (y === 12 && (x >= 7 && x <= 11)) n.push({ x: x, y: 11 });
-        if (y === 11 && (x >= 7 && x <= 11)) n.push({ x: x, y: 12 });
-        if (x === 6 && (y >= 7 && y <= 11)) n.push({ x: 7, y: y });
-        if (x === 7 && (y >= 7 && y <= 11)) n.push({ x: 6, y: y });
-        if (x === 12 && (y >= 7 && y <= 11)) n.push({ x: 11, y: y });
-        if (x === 11 && (y >= 7 && y <= 11)) n.push({ x: 12, y: y });
-        if (x === 7 && y < 7) n.push({ x: y, y: 7 });
-        if (y === 7 && x < 7) n.push({ x: 7, y: x });
-        if (x === 11 && y < 7) n.push({ x: 18 - y, y: 7 });
-        if (y === 7 && x > 11) n.push({ x: 11, y: 18 - x });
-        if (x === 7 && y > 11) n.push({ x: 18 - y, y: 11 });
-        if (y === 11 && x < 7) n.push({ x: 7, y: 18 - x });
-        if (x === 11 && y > 11) n.push({ x: y, y: 11 });
-        if (y === 11 && x > 11) n.push({ x: 11, y: x });
-        return n;
+        return [];
     }
 
     updateValidMoves() {
         this.validMoves = [];
         const pColor = this.turn, pStones = [];
-        for (let x = 0; x < 19; x++) {
-            for (let y = 0; y < 19; y++) { if (this.grid[x][y] === pColor) pStones.push({ x, y }); }
+        for (let x = 0; x < this.gridSize; x++) {
+            for (let y = 0; y < this.gridSize; y++) {
+                if (this.grid[x][y] === pColor) pStones.push({ x, y });
+            }
         }
-        for (let x = 0; x < 19; x++) {
-            for (let y = 0; y < 19; y++) {
+        for (let x = 0; x < this.gridSize; x++) {
+            for (let y = 0; y < this.gridSize; y++) {
                 if (!this.isValidCell(x, y) || this.grid[x][y] !== null) continue;
                 if (pStones.some(s => this.checkConnection(s, { x, y }) && !this.isPathBlocked(s, { x, y }))) {
                     this.validMoves.push({ x, y });
@@ -130,11 +130,18 @@ class SkyscraperGame {
         const s3 = this.get3DCoords(source.x, source.y), t3 = this.get3DCoords(target.x, target.y);
         let du = t3.u - s3.u, dv = t3.v - s3.v, dw = t3.w - s3.w, steps = Math.max(Math.abs(du), Math.abs(dv), Math.abs(dw));
         if (steps <= 1) return false;
-        const opponent = this.turn === 'ivory' ? 'onyx' : 'ivory';
+
         for (let i = 1; i < steps; i++) {
-            let u = Math.round(s3.u + (du / steps) * i), v = Math.round(s3.v + (dv / steps) * i), w = Math.round(s3.w + (dw / steps) * i);
+            let u = Math.round(s3.u + (du / steps) * i);
+            let v = Math.round(s3.v + (dv / steps) * i);
+            let w = Math.round(s3.w + (dw / steps) * i);
             let cands = this.get2DFrom3D(u, v, w);
-            for (let c of cands) { if (this.grid[c.x] && this.grid[c.x][c.y] === opponent) return true; }
+            for (let c of cands) {
+                const cellColor = this.grid[c.x][c.y];
+                if (cellColor !== null && cellColor !== this.turn) {
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -149,25 +156,34 @@ class SkyscraperGame {
     }
 
     nextTurn() {
-        const lastPlayer = this.turn;
-        this.turn = this.turn === 'white' ? 'red' : 'white';
+        this.turnIndex = (this.turnIndex + 1) % this.numPlayers;
+        this.turn = this.colors[this.turnIndex];
         this.updateValidMoves();
 
-        // Check for new win condition: Over half of all fields occupied by one color
-        if (this.scores.white >= this.winThreshold || this.scores.red >= this.winThreshold) {
+        let maxScore = 0;
+        for (let c of this.colors) {
+            if (this.scores[c] > maxScore) maxScore = this.scores[c];
+        }
+
+        if (maxScore >= this.winThreshold) {
             this.gameOver = true;
         }
 
         if (!this.gameOver && this.validMoves.length === 0) {
-            this.turn = this.turn === 'white' ? 'red' : 'white';
-            this.updateValidMoves();
-            if (this.validMoves.length === 0) this.gameOver = true;
+            let skips = 1;
+            while (skips < this.numPlayers) {
+                this.turnIndex = (this.turnIndex + 1) % this.numPlayers;
+                this.turn = this.colors[this.turnIndex];
+                this.updateValidMoves();
+                if (this.validMoves.length > 0) break;
+                skips++;
+            }
+            if (skips === this.numPlayers) this.gameOver = true;
         }
         this.updateScore();
         if (this.onStateChange) this.onStateChange();
 
-        // AI Turn
-        if (!this.gameOver && this.aiDifficulty && this.turn === 'red') {
+        if (!this.gameOver && this.aiDifficulty && this.turnIndex !== 0) { // AI controls non-white players
             setTimeout(() => {
                 const move = SkyscraperAI.getMove(this, this.aiDifficulty);
                 if (move) this.makeMove(move.x, move.y);
@@ -176,70 +192,83 @@ class SkyscraperGame {
     }
 
     resolveLines(startX, startY) {
-        // We evaluate all three axes for the trigger stone.
-        // Rule: If you close multiple lines, you get those you won majority in.
-        // Importantly, the trigger stone stays your color if you won ANY of those lines.
-
         const s3 = this.get3DCoords(startX, startY);
         const axes = ['u', 'v', 'w'];
         const triggerPlayer = this.turn;
-
-        let whiteCaptures = new Set();
-        let redCaptures = new Set();
+        let captures = {};
+        this.colors.forEach(c => captures[c] = new Set());
         let triggerWonByPlayer = false;
 
         axes.forEach(axis => {
-            let line = [];
-            const lineLength = (axis === 'w' ? 7 : 5);
 
-            for (let i = 0; i < lineLength; i++) {
+
+            let chunkStart = Math.floor(s3[axis] / 5) * 5;
+            let line = [];
+
+            for (let i = chunkStart; i < chunkStart + 5; i++) {
                 let coords = { ...s3 };
                 coords[axis] = i;
                 const cells = this.get2DFrom3D(coords.u, coords.v, coords.w);
                 if (cells.length > 0) line.push(cells[0]);
             }
 
-            if (line.length === lineLength) {
-                let whiteCount = 0, redCount = 0, isFull = true;
+            if (line.length === 5) {
+                let cellCounts = {};
+                this.colors.forEach(c => cellCounts[c] = 0);
+                let emptyCount = 0;
+
                 line.forEach(c => {
                     const color = this.grid[c.x][c.y];
-                    if (!color) isFull = false;
-                    if (color === 'white') whiteCount++;
-                    else if (color === 'red') redCount++;
+                    if (color) cellCounts[color]++;
+                    else emptyCount++;
                 });
 
-                if (isFull && whiteCount !== redCount) {
-                    const winner = whiteCount > redCount ? 'white' : 'red';
-                    line.forEach(c => {
-                        const key = `${c.x},${c.y}`;
-                        if (winner === 'white') whiteCaptures.add(key);
-                        else redCaptures.add(key);
-                    });
-                    if (winner === triggerPlayer) triggerWonByPlayer = true;
+                if (emptyCount === 0) {
+                    let winner = null;
+                    let maxCount = -1;
+                    let tie = false;
+                    for (let c of this.colors) {
+                        if (cellCounts[c] > maxCount) {
+                            maxCount = cellCounts[c];
+                            winner = c;
+                            tie = false;
+                        } else if (cellCounts[c] === maxCount) {
+                            tie = true;
+                        }
+                    }
+
+                    if (!tie && winner) {
+                        line.forEach(c => {
+                            const key = `${c.x},${c.y}`;
+                            captures[winner].add(key);
+                        });
+                        if (winner === triggerPlayer) triggerWonByPlayer = true;
+                    }
                 }
             }
         });
 
-        // Apply captures
-        whiteCaptures.forEach(key => {
-            const [x, y] = key.split(',').map(Number);
-            this.setGlobally(x, y, 'white');
-        });
-        redCaptures.forEach(key => {
-            const [x, y] = key.split(',').map(Number);
-            this.setGlobally(x, y, 'red');
-        });
+        for (let color of this.colors) {
+            captures[color].forEach(key => {
+                const [x, y] = key.split(',').map(Number);
+                this.setGlobally(x, y, color);
+            });
+        }
 
-        // Invincible trigger stone: if you won at least one line, the stone you placed stays yours
         if (triggerWonByPlayer) {
             this.setGlobally(startX, startY, triggerPlayer);
         }
+        this.updateScore();
     }
 
     updateScore() {
-        let w = 0, r = 0;
-        for (let x = 0; x < 19; x++) { for (let y = 0; y < 19; y++) { if (this.grid[x][y] === 'white') w++; else if (this.grid[x][y] === 'red') r++; } }
-        this.scores = { white: w, red: r };
+        this.colors.forEach(c => this.scores[c] = 0);
+        for (let x = 0; x < this.gridSize; x++) {
+            for (let y = 0; y < this.gridSize; y++) {
+                const c = this.grid[x][y];
+                if (c) this.scores[c]++;
+            }
+        }
     }
 }
 
@@ -302,10 +331,10 @@ class SkyscraperAI {
     }
 
     static getMinDistanceToOwn(game, x, y) {
-        let min = 20;
-        for (let ix = 0; ix < 19; ix++) {
-            for (let iy = 0; iy < 19; iy++) {
-                if (game.grid[ix][iy] === 'red') {
+        let min = game.gridSize * 2;
+        for (let ix = 0; ix < game.gridSize; ix++) {
+            for (let iy = 0; iy < game.gridSize; iy++) {
+                if (game.grid[ix][iy] === game.turn) {
                     const d = Math.abs(x - ix) + Math.abs(y - iy);
                     if (d < min) min = d;
                 }
@@ -315,9 +344,8 @@ class SkyscraperAI {
     }
 
     static isBlockingOpponent(game, x, y) {
-        // Simple check: are we next to an white stone
         const neighbors = [{ x: x + 1, y: y }, { x: x - 1, y: y }, { x: x, y: y + 1 }, { x: x, y: y - 1 }];
-        return neighbors.some(n => n.x >= 0 && n.x < 19 && n.y >= 0 && n.y < 19 && game.grid[n.x][n.y] === 'white');
+        return neighbors.some(n => n.x >= 0 && n.x < game.gridSize && n.y >= 0 && n.y < game.gridSize && game.grid[n.x][n.y] !== null && game.grid[n.x][n.y] !== game.turn);
     }
 }
 
@@ -327,37 +355,33 @@ class View2D {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.game = game;
-        this.colors = { white: '#FDF5E6', red: '#FF4D4D', structure: '#1A1A1A', neutral: '#1a1a1a', highlight: 'rgba(197, 160, 89, 0.3)', lastMove: 'rgba(255, 255, 0, 0.5)' };
+        this.colors = { white: '#FDF5E6', red: '#FF4D4D', blue: '#0077FF', green: '#00FF00', structure: '#1A1A1A', neutral: '#1a1a1a', highlight: 'rgba(197, 160, 89, 0.3)', lastMove: 'rgba(255, 255, 0, 0.5)' };
     }
     resize() {
         const rect = this.canvas.parentElement.getBoundingClientRect();
         const size = Math.min(rect.width, rect.height);
         this.canvas.width = size; this.canvas.height = size;
-        this.cellSize = size / 19;
+        this.cellSize = size / this.game.gridSize;
         this.draw();
     }
     draw() {
         if (!this.ctx) return;
         const ctx = this.ctx, c = this.cellSize;
+        const H = this.game.H;
+        const GS = this.game.gridSize;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.fillStyle = this.colors.structure;
-        ctx.fillRect(7 * c, 0, 5 * c, 19 * c); ctx.fillRect(0, 7 * c, 19 * c, 5 * c);
-        for (let x = 0; x < 19; x++) {
-            for (let y = 0; y < 19; y++) {
-                // Special styling for inaccessible center cell
-                if (x === 9 && y === 9) {
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(x * c + 2, y * c + 2, c - 4, c - 4);
-                    ctx.strokeStyle = '#C5A059';
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(x * c + 8, y * c + 8, c - 16, c - 16);
-                    continue;
-                }
+        ctx.fillRect(H * c, 0, 5 * c, GS * c); ctx.fillRect(0, H * c, GS * c, 5 * c);
+        for (let x = 0; x < GS; x++) {
+            for (let y = 0; y < GS; y++) {
                 if (!this.game.isValidCell(x, y)) continue;
-                const state = this.game.grid[x][y], px = x * c, py = y * c;
+
+                let state = this.game.grid[x][y], px = x * c, py = y * c;
                 ctx.fillStyle = this.colors.neutral;
                 if (state === 'white') { ctx.fillStyle = this.colors.white; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.white; }
                 else if (state === 'red') { ctx.fillStyle = this.colors.red; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.red; }
+                else if (state === 'blue') { ctx.fillStyle = this.colors.blue; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.blue; }
+                else if (state === 'green') { ctx.fillStyle = this.colors.green; ctx.shadowBlur = 10; ctx.shadowColor = this.colors.green; }
                 else if (this.game.validMoves.some(m => m.x === x && m.y === y)) {
                     ctx.fillStyle = this.colors.highlight;
                     ctx.strokeStyle = 'rgba(197,160,89,0.5)';
@@ -377,7 +401,7 @@ class View2D {
                 ctx.shadowBlur = 0;
             }
         }
-        ctx.strokeStyle = 'rgba(197,160,89,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(7 * c, 7 * c, 5 * c, 5 * c);
+        ctx.strokeStyle = 'rgba(197,160,89,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(this.game.H * c, this.game.H * c, 5 * c, 5 * c);
     }
 }
 
@@ -413,10 +437,14 @@ class View3D {
         bloomPass.radius = 0.6;
         this.composer.addPass(bloomPass);
 
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-        sun.position.set(10, 20, 10);
-        this.scene.add(sun);
+        this.scene.add(new THREE.AmbientLight(0x88aacc, 0.6)); // Cooler, brighter ambient moonlight
+        const moon = new THREE.DirectionalLight(0x7799bb, 1.0); // Directional moonlight
+        moon.position.set(20, 30, -10);
+        this.scene.add(moon);
+
+        const fillLight = new THREE.DirectionalLight(0x333344, 0.6); // Soft opposing fill
+        fillLight.position.set(-20, 10, 20);
+        this.scene.add(fillLight);
 
         this.createSkyscraper();
         this.createCityBackground();
@@ -479,20 +507,29 @@ class View3D {
         this.scene.add(city);
     }
     createSkyscraper() {
-        const bodyMat = new THREE.MeshPhysicalMaterial({
+        const classicMat = new THREE.MeshPhysicalMaterial({
             color: 0x050505, roughness: 0.05, metalness: 0.8, clearcoat: 1.0, clearcoatRoughness: 0.05
+        });
+        const solidBaseMat = new THREE.MeshPhysicalMaterial({
+            color: 0x050505, roughness: 0.2, metalness: 0.9, clearcoat: 1.0, clearcoatRoughness: 0.1
         });
         const decoMat = new THREE.MeshPhysicalMaterial({
             color: 0xC5A059, metalness: 1.0, roughness: 0.1, emissive: 0xC5A059, emissiveIntensity: 0.3
         });
 
+        const H = this.game.H;
         for (let u = 0; u < 5; u++) {
             for (let v = 0; v < 5; v++) {
-                for (let w = 0; w <= 6; w++) {
-                    if (u > 0 && u < 4 && v > 0 && v < 4 && w < 6) continue;
-                    // Prevent rendering window at the blocked center of the roof
-                    if (u === 2 && v === 2 && w === 6) continue;
-                    const block = new THREE.Mesh(new THREE.BoxGeometry(0.992, 0.992, 0.992), bodyMat);
+                for (let w = 0; w <= H; w++) {
+                    if (u > 0 && u < 4 && v > 0 && v < 4 && w < H) continue;
+
+                    if (w < this.game.wStart) {
+                        const solid = new THREE.Mesh(new THREE.BoxGeometry(0.992, 0.992, 0.992), solidBaseMat);
+                        solid.position.set(u - 2, w + 3.51, v - 2);
+                        this.scene.add(solid);
+                        continue;
+                    }
+                    const block = new THREE.Mesh(new THREE.BoxGeometry(0.992, 0.992, 0.992), classicMat);
                     block.position.set(u - 2, w + 3.51, v - 2);
                     block.userData = { u, v, w };
                     this.scene.add(block);
@@ -501,19 +538,49 @@ class View3D {
             }
         }
 
-        // Solid Core to prevent "lookthrough"
-        const core = new THREE.Mesh(new THREE.BoxGeometry(3, 7, 3), bodyMat);
-        core.position.set(0, 6.5, 0);
+        // Solid Core to prevent "lookthrough" - now styled black like physical game
+        const core = new THREE.Mesh(new THREE.BoxGeometry(3, H + 1, 3), solidBaseMat);
+        core.position.set(0, (H + 1) / 2 + 3.0, 0);
         this.scene.add(core);
 
-        this.addMassiveBase(bodyMat, decoMat);
+        // Subtle NYC metallic stand with Art Deco stepped corners matching the physical model
+        const standBody = new THREE.Mesh(new THREE.BoxGeometry(5.0, 3.0, 5.0), solidBaseMat);
+        standBody.position.set(0, 1.5, 0); // Center at 1.5, height from 0 to 3.0
+        this.scene.add(standBody);
 
-        const sp1 = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.0, 5, 4), bodyMat);
-        sp1.position.set(0, 10.5, 0); sp1.rotation.y = Math.PI / 4;
+        // Add the 4 thicker pillars stepping outwards at the exact corners
+        for (let x of [-2.4, 2.4]) {
+            for (let z of [-2.4, 2.4]) {
+                const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.0, 1.2), solidBaseMat);
+                pillar.position.set(x, 1.0, z); // Center 1.0, height from 0 to 2.0 (extends outwards by 0.5 units)
+                this.scene.add(pillar);
+
+                const basePillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 1.6), solidBaseMat);
+                basePillar.position.set(x, 0.3, z); // Step down slightly wider at the bottom
+                this.scene.add(basePillar);
+            }
+        }
+
+        const standTrim = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.4, 6.6), solidBaseMat);
+        standTrim.position.set(0, -0.2, 0);
+        this.scene.add(standTrim);
+
+        // Update Spire/Sting to be extremely thin so center field is mostly visible
+        const spH = H * 1.5;
+        const sp1y = H + 3.51 + 0.5 + 2.5;
+        const sp1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.25, 5, 8), solidBaseMat);
+        sp1.position.set(0, sp1y, 0);
         this.scene.add(sp1);
-        const sp2 = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.5, 10, 4), bodyMat);
-        sp2.position.set(0, 16.5, 0); sp2.rotation.y = Math.PI / 4;
+
+        const sp2 = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.08, spH, 8), solidBaseMat);
+        sp2.position.set(0, sp1y + 2.5 + spH / 2, 0);
         this.scene.add(sp2);
+
+        // Optional sharp sting ring on the needle
+        const spRing = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.02, 8, 16), solidBaseMat);
+        spRing.position.set(0, sp1y + 2.5 + spH * 0.7, 0);
+        spRing.rotation.x = Math.PI / 2;
+        this.scene.add(spRing);
 
         const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0x111111 }));
         beacon.position.set(0, 21.5, 0); this.scene.add(beacon);
@@ -570,7 +637,7 @@ class View3D {
             const interior = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), new THREE.MeshBasicMaterial({ color: 0xFFF5E1, transparent: true, opacity: 0.3 }));
             interior.position.z = -0.05; win.add(interior);
         };
-        if (w === 6) addW(0, 0.501, 0, -Math.PI / 2, 0);
+        if (w === this.game.H) addW(0, 0.501, 0, -Math.PI / 2, 0);
         if (u === 0) addW(-0.501, 0, 0, 0, -Math.PI / 2);
         if (u === 4) addW(0.501, 0, 0, 0, Math.PI / 2);
         if (v === 0) addW(0, 0, -0.501, 0, Math.PI);
@@ -648,8 +715,10 @@ class View3D {
 
             if (cells.some(c => this.game.grid[c.x][c.y] === 'white')) { color = 0xFFFFFF; glow = true; intensity = 2.5; }
             else if (cells.some(c => this.game.grid[c.x][c.y] === 'red')) { color = 0xFF0000; glow = true; intensity = 2.5; }
+            else if (cells.some(c => this.game.grid[c.x][c.y] === 'blue')) { color = 0x0077FF; glow = true; intensity = 2.5; }
+            else if (cells.some(c => this.game.grid[c.x][c.y] === 'green')) { color = 0x00FF00; glow = true; intensity = 2.5; }
             else if (isValid) {
-                const hoverColor = this.game.turn === 'white' ? 0xFFFFFF : 0xFF0000;
+                const hoverColor = this.game.turn === 'white' ? 0xFFFFFF : (this.game.turn === 'red' ? 0xFF0000 : (this.game.turn === 'blue' ? 0x0077FF : 0x00FF00));
                 color = isHovered ? hoverColor : 0xC5A059;
                 intensity = isHovered ? 2.0 : 0; // Removed glow for idle valid fields
                 glow = isHovered;
@@ -700,18 +769,48 @@ class View3D {
 // --- App Bootstrap ---
 document.addEventListener('DOMContentLoaded', () => {
     const game = new SkyscraperGame();
-    const v2d = new View2D(document.getElementById('canvas2d'), game);
-    const v3d = new View3D(document.getElementById('canvas3d'), game);
+    let v2d = new View2D(document.getElementById('canvas2d'), game);
+    let v3d = new View3D(document.getElementById('canvas3d'), game);
+
+    const modeBtn = document.getElementById('mode-btn');
+    const modeMenu = document.getElementById('mode-menu');
+    modeBtn.onclick = () => modeMenu.classList.toggle('visible');
+
+    modeMenu.querySelectorAll('button').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const players = parseInt(btn.getAttribute('data-players'), 10);
+            game.setMode(players);
+            modeBtn.textContent = players + ' Players';
+            modeMenu.classList.remove('visible');
+
+            document.getElementById('score-block-blue').style.display = players >= 3 ? 'flex' : 'none';
+            document.getElementById('score-block-green').style.display = players >= 4 ? 'flex' : 'none';
+
+            document.getElementById('canvas3d').innerHTML = '';
+            v3d = new View3D(document.getElementById('canvas3d'), game);
+            v2d.resize();
+            v3d.resize();
+            game.onStateChange();
+        };
+    });
 
     game.onStateChange = () => {
-        document.getElementById('score-white').textContent = game.scores.white;
-        document.getElementById('score-red').textContent = game.scores.red;
-        document.getElementById('turn-white').style.opacity = game.turn === 'white' ? '1' : '0.2';
-        document.getElementById('turn-red').style.opacity = game.turn === 'red' ? '1' : '0.2';
+        ['white', 'red', 'blue', 'green'].forEach(c => {
+            const elScore = document.getElementById('score-' + c);
+            const elTurn = document.getElementById('turn-' + c);
+            if (elScore) elScore.textContent = game.scores[c] || 0;
+            if (elTurn) elTurn.style.opacity = game.turn === c ? '1' : '0.2';
+        });
         v2d.draw(); v3d.update();
         if (game.gameOver) {
-            document.getElementById('msg-title').textContent = game.scores.white > game.scores.red ? 'WHITE VICTORIOUS' : 'RED VICTORIOUS';
-            document.getElementById('msg-body').textContent = `Final Score: ${game.scores.white} - ${game.scores.red}`;
+            let winColor = 'white';
+            let maxSc = -1;
+            ['white', 'red', 'blue', 'green'].forEach(c => {
+                if (game.scores[c] > maxSc) { maxSc = game.scores[c]; winColor = c; }
+            });
+            document.getElementById('msg-title').textContent = winColor.toUpperCase() + ' VICTORIOUS';
+            document.getElementById('msg-body').textContent = `Winning Score: ${maxSc}`;
             document.getElementById('message-modal').style.display = 'flex';
         }
     };
@@ -757,9 +856,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('canvas2d').onclick = (e) => {
         const rect = e.target.getBoundingClientRect();
-        const x = Math.floor(((e.clientX - rect.left) / rect.width) * 19);
-        const y = Math.floor(((e.clientY - rect.top) / rect.height) * 19);
-        if (x >= 0 && x < 19 && y >= 0 && y < 19) {
+        const GS = game.gridSize;
+        const x = Math.floor(((e.clientX - rect.left) / rect.width) * GS);
+        const y = Math.floor(((e.clientY - rect.top) / rect.height) * GS);
+        if (x >= 0 && x < GS && y >= 0 && y < GS) {
             game.makeMove(x, y);
         }
     };

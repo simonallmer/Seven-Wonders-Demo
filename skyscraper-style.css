@@ -5,6 +5,8 @@
     --text-color: #E3DAC9;
     --white: #FDF5E6;
     --red: #FF4D4D;
+    --blue: #0077FF;
+    --green: #00FF00;
 }
 
 body {
@@ -191,6 +193,24 @@ h1 {
     box-shadow: 0 0 10px var(--red);
 }
 
+.blue-theme {
+    color: var(--blue);
+}
+
+.blue-theme .turn-indicator {
+    background: var(--blue);
+    box-shadow: 0 0 10px var(--blue);
+}
+
+.green-theme {
+    color: var(--green);
+}
+
+.green-theme .turn-indicator {
+    background: var(--green);
+    box-shadow: 0 0 10px var(--green);
+}
+
 .controls {
     display: flex;
     gap: 10px;
@@ -214,12 +234,14 @@ button:hover {
     color: #000;
 }
 
-.ai-dropdown {
+.ai-dropdown,
+.mode-dropdown {
     position: relative;
     display: inline-block;
 }
 
-.ai-menu {
+.ai-menu,
+.mode-menu {
     position: absolute !important;
     bottom: calc(100% + 15px) !important;
     left: 50% !important;
@@ -233,14 +255,16 @@ button:hover {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
 }
 
-.ai-menu button {
+.ai-menu button,
+.mode-menu button {
     width: 100%;
     border: none;
     border-bottom: 1px solid rgba(197, 160, 89, 0.2);
     padding: 12px;
 }
 
-.ai-menu.visible {
+.ai-menu.visible,
+.mode-menu.visible {
     display: flex;
 }
 
