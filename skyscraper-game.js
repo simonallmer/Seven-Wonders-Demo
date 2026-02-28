@@ -425,9 +425,10 @@ class View3D {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.target.set(0, 7, 0);
-        // Limit zoom distance to preserve immersion
+        // Limit rotation and zoom distance to preserve immersion
         this.controls.minDistance = 10;
         this.controls.maxDistance = 60;
+        this.controls.maxPolarAngle = Math.PI * 0.48; // Prevent camera from going below ground level
 
         this.composer = new THREE.EffectComposer(this.renderer);
         this.composer.addPass(new THREE.RenderPass(this.scene, this.camera));
@@ -437,16 +438,38 @@ class View3D {
         bloomPass.radius = 0.6;
         this.composer.addPass(bloomPass);
 
-        this.scene.add(new THREE.AmbientLight(0x88aacc, 0.6)); // Cooler, brighter ambient moonlight
-        const moon = new THREE.DirectionalLight(0x7799bb, 1.0); // Directional moonlight
-        moon.position.set(20, 30, -10);
+        this.scene.add(new THREE.AmbientLight(0x88aacc, 0.55)); // Brighter moonlight ambient
+
+        // Add a warm city glow from below for environmental scale
+        const hemi = new THREE.HemisphereLight(0x88aacc, 0x443322, 0.8);
+        this.scene.add(hemi);
+
+        const moon = new THREE.DirectionalLight(0x7799bb, 1.6);
+        moon.position.set(30, 40, -20);
+        const moonTarget = new THREE.Object3D();
+        moonTarget.position.set(0, 5, 0);
+        this.scene.add(moonTarget);
+        moon.target = moonTarget;
         this.scene.add(moon);
 
-        const fillLight = new THREE.DirectionalLight(0x333344, 0.6); // Soft opposing fill
-        fillLight.position.set(-20, 10, 20);
+        const fillLight = new THREE.DirectionalLight(0x444466, 1.2);
+        fillLight.position.set(-30, 20, 30);
+        const fillTarget = new THREE.Object3D();
+        fillTarget.position.set(0, 5, 0);
+        this.scene.add(fillTarget);
+        fillLight.target = fillTarget;
         this.scene.add(fillLight);
 
+        const cityLight1 = new THREE.PointLight(0xffaa44, 2.5, 150);
+        cityLight1.position.set(25, 2, 25);
+        this.scene.add(cityLight1);
+
+        const cityLight2 = new THREE.PointLight(0x4488ff, 1.8, 120);
+        cityLight2.position.set(-25, 3, -25);
+        this.scene.add(cityLight2);
+
         this.createSkyscraper();
+        this.createCityGrid();
         this.createCityBackground();
         this.createRain();
         this.setupRaycaster();
@@ -484,27 +507,98 @@ class View3D {
         }
         this.rain.geometry.attributes.position.needsUpdate = true;
     }
-    createCityBackground() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1024; canvas.height = 512;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#010101';
-        ctx.fillRect(0, 0, 1024, 512);
-        for (let i = 0; i < 500; i++) {
-            const x = Math.random() * 1024, y = 300 + Math.random() * 212;
-            const size = Math.random() * 10 + 5, opacity = Math.random() * 0.5 + 0.1;
-            const col = ['255, 220, 150', '150, 220, 255', '255, 255, 255'][Math.floor(Math.random() * 3)];
-            const grad = ctx.createRadialGradient(x, y, 0, x, y, size);
-            grad.addColorStop(0, `rgba(${col}, ${opacity})`);
-            grad.addColorStop(1, `rgba(${col}, 0)`);
-            ctx.fillStyle = grad;
-            ctx.fillRect(x - size, y - size, size * 2, size * 2);
+    createCityGrid() {
+        const mat = new THREE.MeshPhysicalMaterial({
+            color: 0x010101, roughness: 0.6, metalness: 0.6, clearcoat: 0.1, clearcoatRoughness: 0.8
+        });
+
+        // Add a ground plane for the chessboard streets
+        const groundGeo = new THREE.PlaneGeometry(300, 300);
+        const groundMat = new THREE.MeshPhysicalMaterial({ color: 0x010101, roughness: 0.9, metalness: 0.1 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.01; // Ground level
+        this.scene.add(ground);
+
+        // Chessboard street lines - NYC style
+        const streetSpread = 150;
+        const streetStep = 8.0;
+        for (let i = -streetSpread; i <= streetSpread; i += streetStep) {
+            const lineXGeo = new THREE.PlaneGeometry(0.15, 300);
+            const lineX = new THREE.Mesh(lineXGeo, new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.25 }));
+            lineX.rotation.x = -Math.PI / 2;
+            lineX.position.set(i, 0.0, 0);
+            this.scene.add(lineX);
+
+            const lineZGeo = new THREE.PlaneGeometry(300, 0.15);
+            const lineZ = new THREE.Mesh(lineZGeo, new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.25 }));
+            lineZ.rotation.x = -Math.PI / 2;
+            lineZ.position.set(0, 0.0, i);
+            this.scene.add(lineZ);
         }
-        this.cityTexture = new THREE.CanvasTexture(canvas);
-        this.cityTexture.wrapS = THREE.RepeatWrapping; this.cityTexture.repeat.set(2, 1);
-        const city = new THREE.Mesh(new THREE.SphereGeometry(150, 32, 24), new THREE.MeshBasicMaterial({ map: this.cityTexture, side: THREE.BackSide, transparent: true, opacity: 0.8, fog: false }));
-        city.position.y = -20;
-        this.scene.add(city);
+
+        // Abstract New York Chessboard Blocks
+        const spread = 120;
+        const blockSize = 6.0;
+        const streetW = 2.0;
+        const step = blockSize + streetW;
+
+        const decoWindowMat = new THREE.MeshBasicMaterial({ color: 0x998844 });
+
+        for (let x = -spread; x <= spread; x += step) {
+            for (let z = -spread; z <= spread; z += step) {
+                // Keep clear of the main skyscraper base
+                if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
+
+                const h = Math.random() * 4 + 1.0;
+                const b = new THREE.Mesh(new THREE.BoxGeometry(blockSize, h, blockSize), mat);
+                b.position.set(x, h / 2, z); // Starts from the street level
+                this.scene.add(b);
+
+                // Add tiny emissive windows on background buildings for life
+                if (Math.random() > 0.4) {
+                    const winH = Math.random() * (h - 0.2) + 0.1;
+                    const win = new THREE.Mesh(new THREE.BoxGeometry(blockSize + 0.05, 0.1, blockSize + 0.05), decoWindowMat);
+                    win.position.set(x, winH, z);
+                    this.scene.add(win);
+                }
+
+                if (Math.random() > 0.4) {
+                    const h2 = Math.random() * 3 + 1.0;
+                    const b2 = new THREE.Mesh(new THREE.BoxGeometry(blockSize * 0.7, h2, blockSize * 0.7), mat);
+                    b2.position.set(x, h + h2 / 2, z);
+
+                    if (Math.random() > 0.5) {
+                        const winH2 = h + Math.random() * (h2 - 0.2) + 0.1;
+                        const win2 = new THREE.Mesh(new THREE.BoxGeometry(blockSize * 0.7 + 0.05, 0.1, blockSize * 0.7 + 0.05), decoWindowMat);
+                        win2.position.set(x, winH2, z);
+                        this.scene.add(win2);
+                    }
+                    this.scene.add(b2);
+                }
+            }
+        }
+    }
+
+    createCityBackground() {
+        const loader = new THREE.TextureLoader();
+        loader.load('skyscraper-bg.png', (texture) => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.repeat.set(4, 1);
+
+            // Large cylinder surrounding the playable area
+            const geometry = new THREE.CylinderGeometry(150, 150, 80, 48);
+            const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.BackSide,
+                transparent: true,
+                opacity: 0.95,
+                fog: false
+            });
+            const city = new THREE.Mesh(geometry, material);
+            city.position.y = 10;
+            this.scene.add(city);
+        });
     }
     createSkyscraper() {
         const classicMat = new THREE.MeshPhysicalMaterial({
@@ -718,10 +812,10 @@ class View3D {
             else if (cells.some(c => this.game.grid[c.x][c.y] === 'blue')) { color = 0x0077FF; glow = true; intensity = 2.5; }
             else if (cells.some(c => this.game.grid[c.x][c.y] === 'green')) { color = 0x00FF00; glow = true; intensity = 2.5; }
             else if (isValid) {
-                const hoverColor = this.game.turn === 'white' ? 0xFFFFFF : (this.game.turn === 'red' ? 0xFF0000 : (this.game.turn === 'blue' ? 0x0077FF : 0x00FF00));
-                color = isHovered ? hoverColor : 0xC5A059;
-                intensity = isHovered ? 2.0 : 0; // Removed glow for idle valid fields
-                glow = isHovered;
+                const hoverColor = this.game.turn === 'white' ? 0xFFFFFF : (this.game.turn === 'red' ? 0xFF7777 : (this.game.turn === 'blue' ? 0x77CCFF : 0x77FF77));
+                color = isHovered ? hoverColor : 0xC5A059; // Back to subtle gold/stone hue
+                intensity = isHovered ? 2.5 : 0.4; // Drastically toned down idle glow
+                glow = true;
             }
 
             // Highlight Last Move
