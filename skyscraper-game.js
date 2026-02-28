@@ -349,7 +349,7 @@ class SkyscraperAI {
     }
 }
 
-// --- 2D Implementation ---
+/* --- 2D Implementation (Reserved for Background/Future Use) ---
 class View2D {
     constructor(canvas, game) {
         this.canvas = canvas;
@@ -413,6 +413,7 @@ class View2D {
         ctx.strokeStyle = 'rgba(197,160,89,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(this.game.H * c, this.game.H * c, 5 * c, 5 * c);
     }
 }
+*/
 
 // --- 3D Implementation ---
 class View3D {
@@ -883,7 +884,6 @@ class View3D {
 // --- App Bootstrap ---
 document.addEventListener('DOMContentLoaded', () => {
     const game = new SkyscraperGame();
-    let v2d = new View2D(document.getElementById('canvas2d'), game);
     let v3d = new View3D(document.getElementById('canvas3d'), game);
 
     const modeBtn = document.getElementById('mode-btn');
@@ -903,7 +903,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (v3d) v3d.destroy();
             v3d = new View3D(document.getElementById('canvas3d'), game);
-            v2d.resize();
             v3d.resize();
             if (game.onStateChange) game.onStateChange();
         };
@@ -916,7 +915,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (elScore) elScore.textContent = game.scores[c] || 0;
             if (elTurn) elTurn.style.opacity = game.turn === c ? '1' : '0.2';
         });
-        v2d.draw(); v3d.update();
+        v3d.update();
         if (game.gameOver) {
             let winColor = 'white';
             let maxSc = -1;
@@ -953,34 +952,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    document.getElementById('toggle-2d').onclick = () => {
-        document.getElementById('canvas2d').style.display = 'block';
-        document.getElementById('canvas3d').style.display = 'none';
-        document.getElementById('toggle-2d').classList.add('active');
-        document.getElementById('toggle-3d').classList.remove('active');
-        v2d.resize();
-    };
-    document.getElementById('toggle-3d').onclick = () => {
-        document.getElementById('canvas2d').style.display = 'none';
-        document.getElementById('canvas3d').style.display = 'block';
-        document.getElementById('toggle-2d').classList.remove('active');
-        document.getElementById('toggle-3d').classList.add('active');
-        v3d.resize();
-    };
-
-    document.getElementById('canvas2d').onclick = (e) => {
-        const rect = e.target.getBoundingClientRect();
-        const GS = game.gridSize;
-        const x = Math.floor(((e.clientX - rect.left) / rect.width) * GS);
-        const y = Math.floor(((e.clientY - rect.top) / rect.height) * GS);
-        if (x >= 0 && x < GS && y >= 0 && y < GS) {
-            game.makeMove(x, y);
-        }
-    };
-
     document.getElementById('reset-btn').onclick = () => game.reset();
     document.getElementById('rules-btn').onclick = () => document.getElementById('rules-modal').style.display = 'flex';
 
-    window.onresize = () => { v2d.resize(); v3d.resize(); };
-    setTimeout(() => { v2d.resize(); v3d.resize(); game.onStateChange(); }, 100);
+    window.onresize = () => { if (v3d) v3d.resize(); };
+    setTimeout(() => { if (v3d) v3d.resize(); game.onStateChange(); }, 100);
 });
