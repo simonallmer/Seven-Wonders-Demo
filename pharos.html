@@ -42,6 +42,9 @@
         <button id="reset-button" class="action-btn reset-btn">
             New Game
         </button>
+        <button id="rules-btn" class="action-btn rules-btn">
+            Rules
+        </button>
     </div>
 
     <!-- Message Box -->
@@ -56,6 +59,46 @@
         </div>
     </div>
 
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="rules-modal" style="display:none;">
+        <div class="rules-overlay" id="rules-overlay"></div>
+        <div class="rules-content">
+            <h2>PHAROS Rules</h2>
+            <div class="rules-body">
+                <p><strong>GOAL</strong>
+                    The goal of Pharos is to prevent the opponent’s stones from moving.</p>
+
+                <p><strong>SETUP</strong>
+                    A color for each player is chosen at random. The stones are automatically placed on the starting
+                    fields.
+                    Five stones of each color are off the field and serve as light sources atop the beacon fields once
+                    activated.</p>
+
+                <p><strong>GAMEPLAY</strong>
+                    White begins and has to make a movement. Afterwards Black continues. Players can only move one
+                    stone per turn.</p>
+
+                <p><strong>MOVEMENT</strong>
+                    Stones cannot move by themselves. Instead, stones of the same color can send off light horizontally
+                    or vertically to make the chosen stone move one field horizontally or vertically. After sending out
+                    light, a stone turns dark for the rest of this turn. Light can move through several stones of the
+                    same color provided they are not interrupted by opponent forces.</p>
+
+                <p><strong>ATTACK</strong>
+                    You can remove an opponent's stone by occupying its field.</p>
+
+                <p><strong>BEACONS</strong>
+                    In the beginning, all five beacons are unlit. Once a stone enters the beacon field, it is light in
+                    the color of the stone and may send out light like a regular stone. Beacons can change color
+                    throughout the game.</p>
+
+                <p><strong>END</strong>
+                    Once a player is unable to move, the other player is declared the winner.</p>
+            </div>
+            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="game-footer">
         <p><a href="https://sevenwondersgames.com"
@@ -64,6 +107,17 @@
     </footer>
 
     <script src="pharos-game.js"></script>
+    <script>
+        document.getElementById('rules-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').style.display = 'flex';
+        });
+        document.getElementById('rules-close-btn').addEventListener('click', function () {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+        document.getElementById('rules-overlay').addEventListener('click', function () {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+    </script>
 </body>
 
 </html>

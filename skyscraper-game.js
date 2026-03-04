@@ -475,8 +475,9 @@ class View3D {
         this.scene.fog = new THREE.Fog(0x010101, 30, 200);
         this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
         this.camera.position.set(22, 28, 22);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        this.renderer.toneMapping = THREE.ReinhardToneMapping;
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+        this.renderer.setPixelRatio(window.devicePixelRatio > 1.5 ? 2 : window.devicePixelRatio); // Cap pixel ratio
+        this.renderer.toneMapping = THREE.LinearToneMapping;
         this.container.appendChild(this.renderer.domElement);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
@@ -503,7 +504,6 @@ class View3D {
         const moon = new THREE.DirectionalLight(0x7799bb, 1.6);
         moon.position.set(30, 40, -20);
         const moonTarget = new THREE.Object3D();
-        moonTarget.position.set(0, 5, 0);
         this.scene.add(moonTarget);
         moon.target = moonTarget;
         this.scene.add(moon);
@@ -516,8 +516,10 @@ class View3D {
         fillLight.target = fillTarget;
         this.scene.add(fillLight);
 
+        this.cars = [];
         this.createSkyscraper();
         this.createCityGrid();
+        this.createTraffic();
         this.createRain();
         this.setupRaycaster();
         this.setupKeyboard();
@@ -564,9 +566,96 @@ class View3D {
         }
         this.rain.geometry.attributes.position.needsUpdate = true;
     }
+    createTraffic() {
+        const carCount = 5; // Reduced to 5 for maximum stability
+        const spread = 120, step = 8.0;
+        const carColors = [0xffaa44, 0x4488ff, 0xffffff, 0xC5A059];
+
+        for (let i = 0; i < carCount; i++) {
+            const isVertical = Math.random() > 0.5;
+            const streetCoord = (Math.floor(Math.random() * (spread * 2 / step)) - spread / step) * step + 4;
+            const randomCoord = (Math.random() * spread * 2) - spread;
+
+            let x, z, angle;
+            if (isVertical) {
+                x = streetCoord; z = randomCoord; angle = Math.random() > 0.5 ? 0 : Math.PI;
+            } else {
+                x = randomCoord; z = streetCoord; angle = Math.random() > 0.5 ? Math.PI / 2 : -Math.PI / 2;
+            }
+
+            const carColor = carColors[Math.floor(Math.random() * carColors.length)];
+            const car = this.createCar(x, z, angle, carColor);
+            this.scene.add(car);
+            this.cars.push(car);
+        }
+    }
+    createCar(x, z, angle, color) {
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.15, 0.6),
+            new THREE.MeshBasicMaterial({ color: 0x050505 })
+        );
+        group.add(body);
+
+        const headMat = new THREE.MeshBasicMaterial({ color: color });
+        const hLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.1), headMat);
+        hLeft.position.set(-0.1, 0.05, 0.3);
+        group.add(hLeft);
+
+        const hRight = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.1), headMat);
+        hRight.position.set(0.1, 0.05, 0.3);
+        group.add(hRight);
+
+        const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const tLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.1), tailMat);
+        tLeft.position.set(-0.1, 0.05, -0.3);
+        group.add(tLeft);
+
+        const tRight = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.1), tailMat);
+        tRight.position.set(0.1, 0.05, -0.3);
+        group.add(tRight);
+
+        group.position.set(x, 0.1, z);
+        group.rotation.y = angle;
+
+        group.userData = {
+            speed: 0.05 + Math.random() * 0.05,
+            dir: new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), angle),
+            lastNode: null
+        };
+        return group;
+    }
+    updateTraffic() {
+        const step = 8.0, spread = 120;
+        const tempPos = new THREE.Vector3();
+
+        this.cars.forEach(car => {
+            const data = car.userData;
+            car.position.addScaledVector(data.dir, data.speed);
+
+            if (Math.abs(car.position.x) > spread) car.position.x *= -0.99;
+            if (Math.abs(car.position.z) > spread) car.position.z *= -0.99;
+
+            const nx = Math.round((car.position.x - 4) / step) * step + 4;
+            const nz = Math.round((car.position.z - 4) / step) * step + 4;
+            tempPos.set(nx, car.position.y, nz);
+
+            if (car.position.distanceTo(tempPos) < 0.25) {
+                const nodeKey = `${nx},${nz}`;
+                if (data.lastNode !== nodeKey) {
+                    data.lastNode = nodeKey;
+                    if (Math.random() > 0.75) {
+                        const turnAngle = (Math.random() > 0.5 ? 1 : -1) * Math.PI / 2;
+                        data.dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), turnAngle);
+                        car.rotation.y += turnAngle;
+                    }
+                }
+            }
+        });
+    }
     createCityGrid() {
-        const mat = new THREE.MeshPhysicalMaterial({
-            color: 0x010101, roughness: 0.6, metalness: 0.6, clearcoat: 0.1, clearcoatRoughness: 0.8
+        const mat = new THREE.MeshPhongMaterial({
+            color: 0x010101, shininess: 30, specular: 0x222222
         });
 
         // Add a ground plane for the chessboard streets
@@ -638,14 +727,14 @@ class View3D {
     }
 
     createSkyscraper() {
-        const classicMat = new THREE.MeshPhysicalMaterial({
-            color: 0x050505, roughness: 0.05, metalness: 0.8, clearcoat: 1.0, clearcoatRoughness: 0.05
+        const classicMat = new THREE.MeshPhongMaterial({
+            color: 0x050505, shininess: 50, specular: 0x222222
         });
-        const solidBaseMat = new THREE.MeshPhysicalMaterial({
-            color: 0x050505, roughness: 0.2, metalness: 0.9, clearcoat: 1.0, clearcoatRoughness: 0.1
+        const solidBaseMat = new THREE.MeshPhongMaterial({
+            color: 0x050505, shininess: 30, specular: 0x111111
         });
-        const decoMat = new THREE.MeshPhysicalMaterial({
-            color: 0xC5A059, metalness: 1.0, roughness: 0.1, emissive: 0xC5A059, emissiveIntensity: 0.3
+        const decoMat = new THREE.MeshPhongMaterial({
+            color: 0xC5A059, shininess: 100, specular: 0xFFFFFF, emissive: 0xC5A059, emissiveIntensity: 0.1
         });
 
         const H = this.game.H;
@@ -729,8 +818,8 @@ class View3D {
         this.createBlockStack(-baseSize, baseSize, baseDepth, -4, bodyMat, decoMat, true);
     }
     createBlockStack(uRange, vRange, wStart, wEnd, bodyMat, decoMat, addDecoWindows) {
-        const winMat = new THREE.MeshPhysicalMaterial({
-            color: 0xFFF5E1, emissive: 0xFFF5E1, emissiveIntensity: 2.5, transparent: true, opacity: 1.0
+        const winMat = new THREE.MeshPhongMaterial({
+            color: 0xFFF5E1, emissive: 0xFFF5E1, emissiveIntensity: 0.8
         });
         const h = wEnd - wStart;
         const mesh = new THREE.Mesh(new THREE.BoxGeometry((uRange * 2) + 1, h, (vRange * 2) + 1), bodyMat);
@@ -754,9 +843,8 @@ class View3D {
         interior.position.z = -0.01; win.add(interior);
     }
     addWindows(u, v, w, parent) {
-        const mat = () => new THREE.MeshPhysicalMaterial({
-            color: 0x111111, metalness: 0.5, roughness: 0.1,
-            transparent: false, opacity: 1.0, side: THREE.FrontSide,
+        const mat = () => new THREE.MeshPhongMaterial({
+            color: 0x111111, shininess: 80, specular: 0x444444,
             emissive: 0x000000, emissiveIntensity: 0
         });
         const key = `${u},${v},${w}`;
@@ -894,6 +982,7 @@ class View3D {
 
         this.controls.update();
         this.updateRain();
+        this.updateTraffic();
         this.composer.render();
     }
 }
