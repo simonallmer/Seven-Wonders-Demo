@@ -21,6 +21,11 @@ let selectedStone = null;
 let validMoves = [];
 let gameState = 'SELECT_STONE';
 let lastPush = null;
+let isVsComputer = false;
+
+// Track AI behavior to prevent loops
+let aiLastMovedStone = null; // {level, row, col}
+let aiConsecutiveMoveCount = 0;
 
 // ============================================
 // DOM ELEMENTS
@@ -32,6 +37,7 @@ const blackCountElement = document.getElementById('black-count');
 const topCountElement = document.getElementById('top-count');
 const messageBox = document.getElementById('message-box');
 const resetButton = document.getElementById('reset-button');
+const opponentButton = document.getElementById('opponent-btn');
 const cancelButton = document.getElementById('cancel-button');
 const gameOverModal = document.getElementById('game-over-modal');
 const modalTitle = document.getElementById('modal-title');
@@ -499,6 +505,24 @@ function handleCellClick(level, row, col) {
 function executeMove(move) {
     const fromPiece = pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece;
 
+    // Track AI consecutive moves with the same stone
+    if (currentPlayer === 'black') {
+        if (aiLastMovedStone &&
+            aiLastMovedStone.level === selectedStone.level &&
+            aiLastMovedStone.row === selectedStone.row &&
+            aiLastMovedStone.col === selectedStone.col) {
+            aiConsecutiveMoveCount++;
+        } else {
+            aiConsecutiveMoveCount = 1;
+        }
+        // Update to the NEW position of the stone
+        aiLastMovedStone = { level: move.level, row: move.row, col: move.col };
+    } else {
+        // Reset if human moves
+        aiLastMovedStone = null;
+        aiConsecutiveMoveCount = 0;
+    }
+
     if (move.type === 'run' || move.type === 'jump') {
         pyramid[move.level][move.row][move.col].piece = fromPiece;
         pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece = null;
@@ -664,6 +688,150 @@ function endTurn() {
     updateStatus();
     updateCounts();
     updateUI();
+
+    if (gameState !== 'GAME_OVER' && isVsComputer && currentPlayer === 'black') {
+        setTimeout(makeAIMove, 600);
+    }
+}
+
+// ============================================
+// AI LOGIC
+// ============================================
+
+function makeAIMove() {
+    if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
+
+    let allPossibleMoves = [];
+
+    // Collect all valid moves for black
+    pyramid.forEach((grid, level) => {
+        grid.forEach((row, r) => {
+            row.forEach((cell, c) => {
+                if (cell.piece === 'black') {
+                    const runMoves = calculateRunMoves(level, r, c);
+                    const jumpMoves = calculateJumpMoves(level, r, c);
+                    const pushMoves = calculatePushMoves(level, r, c);
+                    const moves = [...runMoves, ...jumpMoves, ...pushMoves];
+
+                    moves.forEach(move => {
+                        allPossibleMoves.push({
+                            stone: { level, row: r, col: c },
+                            move: move
+                        });
+                    });
+                }
+            });
+        });
+    });
+
+    if (allPossibleMoves.length === 0) {
+        // AI has no moves
+        gameState = 'GAME_OVER';
+        updateStatus('Game Over! White wins!');
+        showGameOverModal('White Wins!', 'White wins! Black has no legal moves.');
+        return;
+    }
+
+    // Heuristic Evaluation function for single move
+    let bestMove = null;
+    let bestScore = -Infinity;
+
+    allPossibleMoves.forEach(action => {
+        let score = 0;
+        const { stone, move } = action;
+
+        // 1. Smash moves (direct capture)
+        if (move.type === 'smash') {
+            const smashedPiece = pyramid[move.level][move.row][move.col].piece;
+            if (smashedPiece === 'white') {
+                score += 150; // Good: smashed enemy
+            } else if (smashedPiece === 'black') {
+                score -= 500; // BAD: smashed own stone!
+            }
+        }
+
+        // 2. Push moves
+        if (move.type === 'push-fall') {
+            const pushedPiece = pyramid[move.level][move.row][move.col].piece;
+            if (pushedPiece === 'white') {
+                score += 150; // Good: pushed enemy off board
+            } else if (pushedPiece === 'black') {
+                score -= 500; // BAD: pushed own stone off board!
+            }
+        } else if (move.type === 'push') {
+            const pushedPiece = pyramid[move.level][move.row][move.col].piece;
+            const targetPiece = pyramid[move.pushTo.level][move.pushTo.row][move.pushTo.col].piece;
+
+            if (pushedPiece === 'white') {
+                score += 30; // Pushing enemy is generally good
+                if (move.pushTo.level < move.level && targetPiece === 'black') {
+                    score -= 400; // BAD: pushing enemy to smash our own stone!
+                } else if (move.pushTo.level < move.level && targetPiece === 'white') {
+                    score += 100; // Good: pushing enemy to smash another enemy!
+                }
+            } else if (pushedPiece === 'black') {
+                score -= 60; // Pushing own stones is risky
+                if (move.pushTo.level < move.level && targetPiece === 'black') {
+                    score -= 500; // VERY BAD: pushing own stone to smash another own stone!
+                } else if (move.pushTo.level < move.level && targetPiece === 'white') {
+                    score -= 100; // BAD: dropping own stone onto enemy (self-destruct)
+                }
+            }
+        }
+
+        // 3. Positional Advantage (moving up)
+        if (move.level === 3) {
+            score += 10000; // Winner!
+        } else if (move.level > stone.level || (move.type === 'jump')) {
+            score += 40 * move.level;
+        } else if (move.level < stone.level && move.type !== 'smash' && move.type !== 'push') {
+            score -= 20; // Discourage moving down without a reason
+        }
+
+        // 4. Center-ish bias for lower levels
+        if (move.level < 2) {
+            const center = LEVELS[move.level].size / 2 - 0.5;
+            const dist = Math.abs(move.row - center) + Math.abs(move.col - center);
+            score += (5 - dist) * 2;
+        }
+
+        // 5. Winning fields on Level 2
+        if (move.level === 2) {
+            if ((move.row === 0 && move.col === 0) || (move.row === 0 && move.col === 2) ||
+                (move.row === 2 && move.col === 0) || (move.row === 2 && move.col === 2)) {
+                score += 1000;
+            }
+        }
+
+        // 6. Randomness
+        score += Math.random() * 10;
+
+        // 7. Loop Prevention: Penalize moving the same stone too many times in a row
+        if (aiLastMovedStone &&
+            aiLastMovedStone.level === stone.level &&
+            aiLastMovedStone.row === stone.row &&
+            aiLastMovedStone.col === stone.col) {
+
+            if (aiConsecutiveMoveCount >= 2) {
+                // Heavily penalize moving the same stone a 3rd time
+                score -= 200;
+            } else if (aiConsecutiveMoveCount >= 1) {
+                // Slightly penalize moving it twice (prefer variety)
+                score -= 30;
+            }
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = action;
+        }
+    });
+
+    // Execute the best move found
+    if (bestMove) {
+        selectedStone = bestMove.stone; // Mock selection
+        executeMove(bestMove.move);
+    }
 }
 
 // ============================================
@@ -672,6 +840,13 @@ function endTurn() {
 
 resetButton.addEventListener('click', initializePyramid);
 cancelButton.addEventListener('click', cancelMove);
+opponentButton.addEventListener('click', () => {
+    isVsComputer = !isVsComputer;
+    opponentButton.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
+    if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
+        setTimeout(makeAIMove, 600);
+    }
+});
 
 // ============================================
 // INITIALIZATION

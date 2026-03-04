@@ -13,6 +13,7 @@ let board = [];
 let currentPlayer = 'white';
 // States: SELECT_MOVE_STONE, SELECT_LIGHT_SOURCE, SELECT_TARGET_CELL, GAME_OVER
 let gameState = 'SELECT_MOVE_STONE';
+let isVsComputer = false;
 
 // The piece currently being moved {r, c}
 let moveSource = null;
@@ -21,6 +22,10 @@ let startMoveSource = null;
 
 // Array to track the moves made this turn
 let moveHistory = [];
+
+// Track AI behavior to prevent loops
+let aiLastMovedStone = null; // {r, c}
+let aiConsecutiveMoveCount = 0;
 
 // Potential move options based on the current step in the move chain
 let potentialLightSources = [];
@@ -40,6 +45,7 @@ const playerColorElement = document.getElementById('current-player-color');
 const messageBox = document.getElementById('message-box');
 const resetButton = document.getElementById('reset-button');
 const endTurnButton = document.getElementById('end-turn-button');
+const opponentButton = document.getElementById('opponent-btn');
 const gameOverModal = document.getElementById('game-over-modal');
 const modalTitle = document.getElementById('modal-title');
 const modalText = document.getElementById('modal-text');
@@ -527,6 +533,23 @@ function executeMove(targetPos) {
     const { r: targetR, c: targetC } = targetPos;
 
     const movingPiece = board[sourceR][sourceC].piece;
+
+    // Track AI consecutive moves with the same stone (across turns)
+    if (movingPiece === 'black' && moveHistory.length === 0) {
+        // Only record the FIRST stone moved in a chain for loop tracking
+        if (aiLastMovedStone &&
+            aiLastMovedStone.r === sourceR &&
+            aiLastMovedStone.c === sourceC) {
+            aiConsecutiveMoveCount++;
+        } else {
+            aiConsecutiveMoveCount = 1;
+        }
+        // Update to the NEW position for the next turn's check
+        aiLastMovedStone = { r: targetR, c: targetC };
+    } else if (movingPiece === 'white') {
+        aiLastMovedStone = null;
+        aiConsecutiveMoveCount = 0;
+    }
     let message = '';
     let captureOccurred = false;
 
@@ -617,6 +640,10 @@ function endTurn() {
     currentPlayer = losingPlayer;
     drawBoard();
     updateStatus();
+
+    if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
+        setTimeout(makeAIMove, 600);
+    }
 }
 
 /**
@@ -659,5 +686,123 @@ endTurnButton.addEventListener('click', () => {
     showMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} chose to end their movement chain using the End Turn button.`);
     endTurn();
 });
+let _opponentBtnTimeout = null;
+opponentButton.addEventListener('click', () => {
+    // Computer mode is coming soon — revert immediately after showing the message
+    clearTimeout(_opponentBtnTimeout);
+    isVsComputer = false;
+    opponentButton.textContent = 'Computer Coming Soon';
+    _opponentBtnTimeout = setTimeout(() => {
+        opponentButton.textContent = 'Opponent: Human';
+    }, 1500);
+});
+
+
+// ============================================
+// AI LOGIC
+// ============================================
+
+function makeAIMove() {
+    if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
+
+    if (gameState === 'SELECT_MOVE_STONE') {
+        // AI: Find all legal moves for all black stones
+        let validFirstMoves = [];
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c].piece === 'black') {
+                    // Temporarily set moveSource to test
+                    moveSource = { r, c };
+                    const targets = getPossibleMoves(r, c);
+                    const lights = findAvailableLightSources(r, c, 'black');
+                    moveSource = null;
+
+                    if (targets.length > 0 && lights.length > 0) {
+                        for (let t of targets) {
+                            validFirstMoves.push({ stone: { r, c }, target: t, light: lights[0] });
+                        }
+                    }
+                }
+            }
+        }
+
+        if (validFirstMoves.length === 0) {
+            endTurn();
+            return;
+        }
+
+        // Evaluate moves purely based on targets (e.g., captures, beacon control)
+        let bestScore = -Infinity;
+        let bestMove = validFirstMoves[0];
+
+        validFirstMoves.forEach(m => {
+            let score = 0;
+            const targetColor = board[m.target.r][m.target.c].piece;
+            if (targetColor === 'white') score += 200; // capture! (Increased weight)
+            if (isBeaconField(m.target.r, m.target.c)) score += 60; // beacon!
+
+            // Prefer advancing towards white's starting area (top)
+            score += (8 - m.target.r) * 5;
+
+            // Loop Prevention: Penalize moving the same stone too many times
+            if (aiLastMovedStone &&
+                aiLastMovedStone.r === m.stone.r &&
+                aiLastMovedStone.c === m.stone.c) {
+                if (aiConsecutiveMoveCount >= 2) score -= 300;
+                else if (aiConsecutiveMoveCount >= 1) score -= 50;
+            }
+
+            // Random jitter
+            score += Math.random() * 10;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = m;
+            }
+        });
+
+        // Execute first click
+        handleCellClick(bestMove.stone.r, bestMove.stone.c);
+        setTimeout(makeAIMove, 400); // Trigger next step
+        return;
+    }
+
+    if (gameState === 'SELECT_LIGHT_SOURCE') {
+        // AI picks random available light source
+        if (potentialLightSources.length > 0) {
+            const ls = potentialLightSources[0];
+            handleCellClick(ls.r, ls.c);
+            setTimeout(makeAIMove, 400);
+        } else {
+            endTurnButton.click();
+        }
+        return;
+    }
+
+    if (gameState === 'SELECT_TARGET_CELL') {
+        if (potentialMoveTargets.length > 0) {
+            let bestScore = -Infinity;
+            let bestTarget = potentialMoveTargets[0];
+
+            potentialMoveTargets.forEach(tgt => {
+                let score = 0;
+                const targetColor = board[tgt.r][tgt.c].piece;
+                if (targetColor === 'white') score += 100;
+                if (isBeaconField(tgt.r, tgt.c)) score += 50;
+                score += (8 - tgt.r) * 5;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestTarget = tgt;
+                }
+            });
+            handleCellClick(bestTarget.r, bestTarget.c);
+            setTimeout(makeAIMove, 400); // Check for chains
+        } else {
+            endTurnButton.click();
+        }
+        return;
+    }
+}
 
 document.addEventListener('DOMContentLoaded', initializeBoard);

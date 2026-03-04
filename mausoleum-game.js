@@ -27,6 +27,11 @@ let currentPlayer = PLAYER_1;
 let selectedStone = null; // { r, c }
 let validMoves = [];
 let gameOver = false;
+let isVsComputer = false;
+
+// Track AI behavior to prevent loops
+let aiLastMovedStone = null; // {r, c}
+let aiConsecutiveMoveCount = 0;
 
 // Game data maps
 let fieldElements = new Map(); // "r,c" -> { spot, hitbox }
@@ -41,9 +46,9 @@ const svg = document.getElementById('game-board');
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const statusPlayer = document.getElementById('current-player');
-const p1CountDisplay = document.getElementById('player1-count');
 const p2CountDisplay = document.getElementById('player2-count');
 const resetButton = document.getElementById('reset-button');
+const opponentButton = document.getElementById('opponent-btn');
 const messageBox = document.getElementById('message-box');
 const messageTitle = document.getElementById('message-title');
 const messageText = document.getElementById('message-text');
@@ -403,8 +408,29 @@ function moveStone(r1, c1, r2, c2) {
         return;
     }
 
+    // Track AI consecutive moves to prevent loops
+    if (currentPlayer === PLAYER_2) {
+        if (aiLastMovedStone &&
+            aiLastMovedStone.r === r1 &&
+            aiLastMovedStone.c === c1) {
+            aiConsecutiveMoveCount++;
+        } else {
+            aiLastMovedStone = { r: r2, c: c2 }; // Update to new position
+            aiConsecutiveMoveCount = 1;
+        }
+        // Update position for next turn's check
+        aiLastMovedStone = { r: r2, c: c2 };
+    } else {
+        aiLastMovedStone = null;
+        aiConsecutiveMoveCount = 0;
+    }
+
     currentPlayer = currentPlayer === PLAYER_1 ? PLAYER_2 : PLAYER_1;
     drawBoard();
+
+    if (!gameOver && isVsComputer && currentPlayer === PLAYER_2) {
+        setTimeout(makeAIMove, 600);
+    }
 }
 
 function resolveEncirclements() {
@@ -514,6 +540,186 @@ function initGame() {
 // EVENT LISTENERS
 // ============================================
 resetButton.addEventListener('click', initGame);
+let _opponentBtnTimeout = null;
+opponentButton.addEventListener('click', () => {
+    // Computer mode is coming soon — revert immediately after showing the message
+    clearTimeout(_opponentBtnTimeout);
+    isVsComputer = false;
+    opponentButton.textContent = 'Computer Coming Soon';
+    _opponentBtnTimeout = setTimeout(() => {
+        opponentButton.textContent = 'Opponent: Human';
+    }, 1500);
+});
+
+
+// ============================================
+// AI LOGIC
+// ============================================
+
+function makeAIMove() {
+    if (gameOver || currentPlayer !== PLAYER_2) return;
+
+    let possibleActions = [];
+
+    // Find all valid moves for all black stones
+    for (let r = 0; r < TOTAL_ROWS; r++) {
+        for (let c = 0; c < ROW_LENGTHS[r]; c++) {
+            if (board[r][c] === PLAYER_2 && !isTrapped(r, c)) {
+                // Determine valid glide destinations
+                const paths = directionMap.get(`${r},${c}`);
+                if (paths) {
+                    for (const path of paths) {
+                        for (let i = 0; i < path.length; i++) {
+                            const pos = path[i];
+                            if (board[pos.r][pos.c] !== EMPTY) {
+                                // Blocked by stone, valid move is the space right before it
+                                if (i > 0) {
+                                    possibleActions.push({
+                                        from: { r, c },
+                                        to: path[i - 1]
+                                    });
+                                }
+                                break;
+                            } else if (i === path.length - 1) {
+                                // Reached edge
+                                possibleActions.push({
+                                    from: { r, c },
+                                    to: pos
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (possibleActions.length === 0) {
+        // Technically this shouldn't happen unless all stones are trapped
+        // Game engine doesn't explicitly handle "no moves left" loss right now, but just in case
+        return;
+    }
+
+    let bestAction = null;
+    let bestScore = -Infinity;
+
+    // Helper: simulate a move and count advantage
+    const simulateAndEvaluate = (action) => {
+        // We only do a shallow evaluation: does this move encircle an opponent? Does it get us encircled?
+        const r1 = action.from.r; const c1 = action.from.c;
+        const r2 = action.to.r; const c2 = action.to.c;
+
+        // Deep copy board for pure evaluation (Mausoleum has a simple board array)
+        const simBoard = board.map(row => [...row]);
+
+        simBoard[r2][c2] = simBoard[r1][c1];
+        simBoard[r1][c1] = EMPTY;
+
+        let score = 0;
+
+        // Count stones to see if this move results in captures
+        let bBefore = 0, wBefore = 0;
+        board.forEach(row => row.forEach(val => {
+            if (val === PLAYER_2) bBefore++;
+            if (val === PLAYER_1) wBefore++;
+        }));
+
+        // Simulate encirclement resolution
+        let simChanged = true;
+        while (simChanged) {
+            simChanged = false;
+            let stonesToRemove = [];
+
+            // Re-implement the exact encirclement logic for the simulation
+            for (let r = 0; r < TOTAL_ROWS; r++) {
+                for (let c = 0; c < ROW_LENGTHS[r]; c++) {
+                    if (simBoard[r][c] !== EMPTY) {
+                        // Check if encircled
+                        let encircled = true;
+                        const neighbors = getNeighbors(r, c);
+                        for (const n of neighbors) {
+                            if (simBoard[n.r][n.c] === EMPTY) {
+                                encircled = false;
+                                break;
+                            }
+                        }
+
+                        // Check if should be removed
+                        if (encircled) {
+                            const stoneOwner = simBoard[r][c];
+                            const opponent = stoneOwner === PLAYER_1 ? PLAYER_2 : PLAYER_1;
+                            let friendlyCount = 0;
+                            let opponentCount = 0;
+                            for (const n of neighbors) {
+                                if (simBoard[n.r][n.c] === stoneOwner) friendlyCount++;
+                                else if (simBoard[n.r][n.c] === opponent) opponentCount++;
+                            }
+                            if (opponentCount > friendlyCount) {
+                                stonesToRemove.push({ r, c });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (stonesToRemove.length > 0) {
+                simChanged = true;
+                stonesToRemove.forEach(st => {
+                    simBoard[st.r][st.c] = EMPTY;
+                });
+            }
+        }
+
+        let bAfter = 0, wAfter = 0;
+        simBoard.forEach(row => row.forEach(val => {
+            if (val === PLAYER_2) bAfter++;
+            if (val === PLAYER_1) wAfter++;
+        }));
+
+        const wLost = wBefore - wAfter;
+        const bLost = bBefore - bAfter;
+
+        // Big penalty for losing stones, big bonus for capturing
+        score += wLost * 1000;
+        score -= bLost * 2000; // Penalize losing own stones more
+
+        // Secondary heuristic: Positional
+        // Prefer having stones centrally located or forming clusters
+        // Rough center is (4, 4)
+        const distFromCenter = Math.abs(r2 - 4) + Math.abs(c2 - 4);
+        score -= distFromCenter * 2;
+
+        // Loop Prevention: Penalize moving the same stone too many times in a row
+        if (aiLastMovedStone &&
+            aiLastMovedStone.r === r1 &&
+            aiLastMovedStone.c === c1) {
+            if (aiConsecutiveMoveCount >= 2) score -= 300;
+            else if (aiConsecutiveMoveCount >= 1) score -= 50;
+        }
+
+        // Add random tiebreaker
+        score += Math.random() * 5;
+
+        return score;
+    };
+
+    possibleActions.forEach(action => {
+        let score = simulateAndEvaluate(action);
+        if (score > bestScore) {
+            bestScore = score;
+            bestAction = action;
+        }
+    });
+
+    if (bestAction) {
+        // Execute move
+        // Update visual selection first for effect
+        onCellClick(bestAction.from.r, bestAction.from.c);
+        setTimeout(() => {
+            onCellClick(bestAction.to.r, bestAction.to.c);
+        }, 300);
+    }
+}
 
 // ============================================
 // INITIALIZATION

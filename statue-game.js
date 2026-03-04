@@ -30,6 +30,12 @@ let onBoardDice = [];
 let reserveDice = { 1: 8, 2: 8 };
 let currentPlayer = 1; // 1 (White) or 2 (Black)
 let gamePhase = 'ACTION_SELECT'; // 'ACTION_SELECT', 'PLACE', 'STRIDE_MOVE', 'DIMINISH_SELECT', 'FORCED_MOVE_SELECT'
+let isVsComputer = false;
+
+// Track AI behavior to prevent loops
+let aiLastMovedStoneId = null;
+let aiConsecutiveMoveCount = 0;
+
 let forcedTurnActive = false;
 let selectedDie = null;
 
@@ -48,6 +54,7 @@ const btnPlace = document.getElementById('action-place');
 const btnDiminish = document.getElementById('action-diminish');
 const btnCancel = document.getElementById('action-cancel');
 const resetBtnMain = document.getElementById('reset-button-main');
+const opponentButton = document.getElementById('opponent-btn');
 const gameOverModal = document.getElementById('game-over-modal');
 const modalText = document.getElementById('modal-text');
 const newGameBtn = document.getElementById('new-game-btn');
@@ -256,6 +263,19 @@ function renderBoard(highlightSquares = [], highlightType = 'move-target') {
  * Switches to the next player's turn
  */
 function switchTurn() {
+    // Track AI consecutive moves to prevent loops
+    if (currentPlayer === 2 && selectedDie) {
+        if (aiLastMovedStoneId === selectedDie.id) {
+            aiConsecutiveMoveCount++;
+        } else {
+            aiLastMovedStoneId = selectedDie.id;
+            aiConsecutiveMoveCount = 1;
+        }
+    } else if (currentPlayer === 1) {
+        aiLastMovedStoneId = null;
+        aiConsecutiveMoveCount = 0;
+    }
+
     currentPlayer = currentPlayer === 1 ? 2 : 1;
 
     if (forcedTurnActive) {
@@ -279,6 +299,10 @@ function switchTurn() {
         messageBox.textContent = `Player ${currentPlayer}'s turn. Click a die to move, or choose an action.`;
         toggleActionButtons(true, false);
         renderBoard();
+
+        if (isVsComputer && currentPlayer === 2 && gamePhase !== 'GAME_OVER') {
+            setTimeout(makeAIMove, 800);
+        }
     }
 }
 
@@ -518,6 +542,260 @@ function handleDieSelectForDiminish(event) {
 btnPlace.addEventListener('click', handlePlaceAction);
 btnDiminish.addEventListener('click', handleDiminishAction);
 btnCancel.addEventListener('click', handleCancel);
+let _opponentBtnTimeout = null;
+opponentButton.addEventListener('click', () => {
+    // Computer mode is coming soon — revert immediately after showing the message
+    clearTimeout(_opponentBtnTimeout);
+    isVsComputer = false;
+    opponentButton.textContent = 'Computer Coming Soon';
+    _opponentBtnTimeout = setTimeout(() => {
+        opponentButton.textContent = 'Opponent: Human';
+    }, 1500);
+});
+
+
+// ============================================
+// AI LOGIC
+// ============================================
+
+function makeAIMove() {
+    if (gamePhase === 'GAME_OVER' || currentPlayer !== 2) return;
+
+    // AI will evaluate three types of actions:
+    // 1. PLACE a die (if reserve > 0)
+    // 2. DIMINISH an opponent die (if valid)
+    // 3. MOVE a die
+    // For moving, since it's a stride, we need to evaluate all possible full moves.
+    // To keep it "Medium", we'll evaluate 1 ply deep for all valid moves.
+
+    let bestAction = null;
+    let bestScore = -Infinity;
+
+    // Helper: evaluate board state from black's perspective
+    const evaluateState = () => {
+        let score = 0;
+        const wCount = onBoardDice.filter(d => d.player === 1).length;
+        const bCount = onBoardDice.filter(d => d.player === 2).length;
+
+        // Win/Loss heavily weighted
+        if (wCount + reserveDice[1] < 3) return 10000; // Black wins
+        if (bCount + reserveDice[2] < 3) return -10000; // White wins
+
+        // Dice advantage
+        score += (bCount - wCount) * 50;
+
+        // Value advantage (higher dice are more powerful)
+        onBoardDice.forEach(d => {
+            if (d.player === 2) score += d.value * 2;
+            else score -= d.value * 2;
+        });
+
+        // Board presence (center control)
+        onBoardDice.forEach(d => {
+            // Rough distance to center (5,5)
+            const dist = Math.abs(5 - d.r) + Math.abs(5 - d.c);
+            if (d.player === 2) {
+                score += (10 - dist);
+            }
+        });
+
+        return score;
+    };
+
+    // Evaluate PLACE
+    if (reserveDice[2] > 0) {
+        // Collect empty squares
+        const emptySquares = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (isWithinBounds(r, c) && !onBoardDice.some(d => d.r === r && d.c === c)) {
+                    emptySquares.push({ r, c });
+                }
+            }
+        }
+
+        // Try placing in safe/strategic spots (simplified to a random empty spot score)
+        if (emptySquares.length > 0) {
+            // Simulate place
+            reserveDice[2]--;
+            const newDie = { id: 999, value: 1, r: -1, c: -1, player: 2 }; // temp
+            onBoardDice.push(newDie);
+
+            // Sample a few empty spots to evaluate
+            for (let i = 0; i < Math.min(3, emptySquares.length); i++) {
+                const sq = emptySquares[i];
+                newDie.r = sq.r; newDie.c = sq.c;
+
+                let score = evaluateState();
+                // Add slight bonus for placing
+                score += 15;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestAction = { type: 'PLACE', target: sq };
+                }
+            }
+            // Revert
+            onBoardDice.pop();
+            reserveDice[2]++;
+        }
+    }
+
+    // Evaluate DIMINISH (Not fully implemented in the simple greedy AI to keep it "Medium" and avoid complex forced moves generation)
+    // For simplicity, Medium AI focuses on placing and striding.
+
+    // Evaluate STRIDE MOVES
+    // This requires recursively finding all stride paths. For a simple greedy bot, we just find the BEST immediate capture 
+    // or a single step that improves position.
+
+    // Simplification for Medium AI:
+    // AI finds all dice it can move. For each die, it looks at reachable squares.
+    // If it can capture a white die, BIG BONUS.
+    // If it can move closer to the center, SMALL BONUS.
+
+    // We need to bypass the UI click handlers and directly compute reachability.
+    // However, since Stride can be multiple steps, computing full reachability recursively is complex.
+    // We will just do a BFS to find all reachable endpoints within `value` steps.
+    const getReachable = (startR, startC, maxSteps) => {
+        let queue = [{ r: startR, c: startC, steps: 0, path: [] }];
+        const visited = new Set([`${startR},${startC}`]);
+        const endpoints = [];
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+
+            // If we've reached max steps, or we hit an enemy (capture ends turn), it's an endpoint
+            if (current.steps === maxSteps) {
+                endpoints.push(current);
+                continue;
+            }
+
+            let moved = false;
+            HV_VECTORS.forEach(v => {
+                const nr = current.r + v.dr;
+                const nc = current.c + v.dc;
+                if (isWithinBounds(nr, nc)) {
+                    const occupant = onBoardDice.find(d => d.r === nr && d.c === nc);
+                    // Can only move to empty or opponent's die > 1
+                    if (!occupant || (occupant.player === 1 && occupant.value > 1)) {
+                        const key = `${nr},${nc}`;
+                        if (!visited.has(key)) {
+                            visited.add(key);
+                            moved = true;
+                            const nextState = { r: nr, c: nc, steps: current.steps + 1, path: [...current.path, { r: nr, c: nc }] };
+                            // If it's a capture, it *must* stop the chain (stride rule: land on opponent = removed, continue remaining. Ah wait.
+                            // Rule: "moving die may continue its remaining movement". 
+                            // Meaning we CAN pass through enemies. This is complex BFS. Let's just treat every valid step as part of the tree.
+                            queue.push(nextState);
+
+                            // Every node is theoretically a valid ending position if we decide to stop? NO, Stride forces exactly `value` steps.
+                            // Wait, rules say "Move horizontally/vertically a number of spaces EQUAL to its face value".
+                            // So we MUST move `value` steps.
+                            if (nextState.steps === maxSteps) {
+                                endpoints.push(nextState);
+                            }
+                        }
+                    }
+                }
+            });
+            // If blocked before max steps, the rules say "Movement blocked... Turn ends". 
+            // So if `!moved` and `steps < maxSteps`, it is a valid endpoint (premature end).
+            if (!moved && current.steps > 0 && current.steps < maxSteps) {
+                endpoints.push(current);
+            }
+        }
+        return endpoints;
+    };
+
+    const myDice = onBoardDice.filter(d => d.player === 2);
+
+    // If forced turn, AI MUST move a 1-value die.
+    if (gamePhase === 'FORCED_MOVE_SELECT') {
+        const forcedDice = myDice.filter(d => d.value === 1 && calculateAdjacentTargets(d.r, d.c, d.player).length > 0);
+        if (forcedDice.length > 0) {
+            // Pick a random forced die
+            const dieToMove = forcedDice[Math.floor(Math.random() * forcedDice.length)];
+            const tgts = calculateAdjacentTargets(dieToMove.r, dieToMove.c, 2);
+            bestAction = { type: 'STRIDE', die: dieToMove, path: [tgts[0]] }; // Just take first valid
+        }
+    } else {
+        myDice.forEach(die => {
+            const endpoints = getReachable(die.r, die.c, die.value);
+            endpoints.forEach(ep => {
+                // Heuristic score for this endpoint
+                let score = 0;
+                // Count captures in path
+                let captures = 0;
+                ep.path.forEach(step => {
+                    const occ = onBoardDice.find(d => d.r === step.r && d.c === step.c);
+                    if (occ && occ.player === 1) captures++;
+                });
+
+                score += captures * 200;
+
+                // Position bonus
+                const dist = Math.abs(5 - ep.r) + Math.abs(5 - ep.c);
+                score += (10 - dist) * 2;
+
+                // Loop Prevention: Penalize moving the same stone too many times in a row
+                if (gamePhase !== 'FORCED_MOVE_SELECT' &&
+                    aiLastMovedStoneId === die.id) {
+                    if (aiConsecutiveMoveCount >= 2) score -= 300;
+                    else if (aiConsecutiveMoveCount >= 1) score -= 50;
+                }
+
+                // Add random tiebreaker
+                score += Math.random() * 5;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestAction = { type: 'STRIDE', die: die, path: ep.path, steps: ep.steps };
+                }
+            });
+        });
+    }
+
+    if (!bestAction && bestScore === -Infinity) {
+        // Fallback: Just place randomly or diminish randomly if stuck
+        handlePlaceAction();
+        // Since place involves UI clicks, AI needs to simulate it.
+        // The evaluate PLACE block above should catch this usually.
+        // If really nothing, end turn.
+        endTurn("Black passes.");
+        return;
+    }
+
+    // Execution
+    if (bestAction.type === 'PLACE') {
+        // Simulate UI clicks for Place
+        handlePlaceAction(); // sets gamePhase to PLACE
+        setTimeout(() => {
+            // Mock target element
+            const mockEvent = { currentTarget: { dataset: { r: bestAction.target.r, c: bestAction.target.c } } };
+            handlePlaceClick(mockEvent);
+        }, 300);
+    } else if (bestAction.type === 'STRIDE') {
+        // Simulate UI clicks for Stride
+        // 1. Select die
+        const mockSelectEvent = { currentTarget: { dataset: { dieId: bestAction.die.id } } };
+        handleDieSelectForStartMove(mockSelectEvent);
+
+        // 2. Execute path sequentially
+        let pathIdx = 0;
+        const execStep = () => {
+            if (pathIdx < bestAction.path.length && gamePhase === 'STRIDE_MOVE') {
+                const step = bestAction.path[pathIdx];
+                const mockMoveEvent = { currentTarget: { dataset: { r: step.r, c: step.c } } };
+                handleMoveClick(mockMoveEvent);
+                pathIdx++;
+                if (pathIdx < bestAction.path.length) {
+                    setTimeout(execStep, 300);
+                }
+            }
+        };
+        setTimeout(execStep, 300);
+    }
+}
+
 
 // ============================================
 // INITIALIZATION

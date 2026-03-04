@@ -44,6 +44,14 @@ let hand = []; // Stones currently being moved
 let moveHistory = []; // Track path to prevent backward movement in same turn
 let messageTimeout = null;
 let handFullWarningShown = false; // Track if "Hand Full" warning has been shown
+let isVsComputer = false; // AI opponent flag
+
+// Track AI behavior to prevent loops and freezes
+let aiLastMovedStone = null; // {area, row, col}
+let aiConsecutiveMoveCount = 0;
+let aiActionTimeout = null; // Track setTimeout for execution
+let isAiThinking = false;
+let currentTurnId = 0; // Increment on every turn change
 
 // ============================================
 // DOM ELEMENTS
@@ -55,6 +63,7 @@ const whiteCountElement = document.getElementById('white-count');
 const blackCountElement = document.getElementById('black-count');
 const messageBox = document.getElementById('message-box');
 const resetButton = document.getElementById('reset-button');
+const opponentButton = document.getElementById('opponent-btn');
 const cancelButton = document.getElementById('cancel-button');
 const gameOverModal = document.getElementById('game-over-modal');
 const modalTitle = document.getElementById('modal-title');
@@ -65,6 +74,14 @@ const modalText = document.getElementById('modal-text');
 // ============================================
 
 function initializeGame() {
+    // Clear any pending AI actions
+    if (aiActionTimeout) {
+        clearTimeout(aiActionTimeout);
+        aiActionTimeout = null;
+    }
+    isAiThinking = false;
+    currentTurnId++;
+
     // Initialize empty board
     board.topField = createGrid(3, 5);
     board.bottomField = createGrid(3, 5);
@@ -140,6 +157,11 @@ function isOwner(stack, player) {
 }
 
 function handleCellClick(area, row, col) {
+    // STRICT LOCK: If it's the AI's turn, do not allow any human clicks to interfere
+    if (isVsComputer && currentPlayer === 'black' && turnPhase !== 'GAME_OVER') {
+        return;
+    }
+
     if (turnPhase === 'SELECT') {
         // If we have a selection, check if this is a valid move target
         if (selectedSource && isValidMove(area, row, col)) {
@@ -159,17 +181,46 @@ function handleSelectPhase(area, row, col) {
     if (area === 'garden') {
         const myStones = stack.filter(s => s === currentPlayer);
         if (myStones.length === 0) return; // No stones of own color
-    } else {
-        // Playing fields: Must own the top of the stack
-        if (!stack || stack.length === 0 || !isOwner(stack, currentPlayer)) {
+
+        // RULE: Gardens are final once stones reach Goal. Stones cannot be moved OUT of Goal Gardens.
+        if (isTargetHighGarden(area, row)) {
+            showMessage("Stones in your Goal Garden are permanent!");
             return;
+        }
+    } else {
+        // Playing fields: Must own the top of the stack UNLESS blocked (Emergency Lift Rule)
+        if (!stack || stack.length === 0) return;
+
+        const blocked = isPlayerBlocked(currentPlayer);
+        if (blocked) {
+            // Emergency Lift: Can select any stack containing own stones
+            if (!stack.includes(currentPlayer)) return;
+            showMessage("EMERGENCY LIFT: Buried stones moved to top!");
+        } else {
+            // NORMAL RULE: You MUST control the top of the stack to move it.
+            if (getTopColor(stack) !== currentPlayer) {
+                showMessage("You can only move stacks that you control (top stone)!");
+                return;
+            }
         }
     }
 
     // Logic for Playing Fields: ALWAYS pick up the entire stack
     if (area === 'top' || area === 'bottom') {
-        const count = stack.length;
         selectedSource = { area, row, col };
+
+        const blocked = isPlayerBlocked(currentPlayer);
+        if (blocked) {
+            // EMERGENCY LIFT MECHANIC: Pull all own stones to top
+            // 1. Extract own stones
+            const myStones = stack.filter(s => s === currentPlayer);
+            const otherStones = stack.filter(s => s !== currentPlayer);
+            // 2. Rebuild stack: others at bottom, mine at top
+            stack.length = 0;
+            stack.push(...otherStones, ...myStones);
+        }
+
+        const count = stack.length;
         // Copy the actual stones from the stack (preserving colors)
         hand = stack.slice();
 
@@ -194,7 +245,9 @@ function handleSelectPhase(area, row, col) {
         let currentCount = hand.length;
 
         // Check for "Hand Full" warning condition
-        if (currentCount === 5 && !handFullWarningShown) {
+        // AI Skip: Computer skips the warning to avoid selection loops
+        const isAI = isVsComputer && currentPlayer === 'black';
+        if (currentCount === 5 && !handFullWarningShown && !isAI) {
             handFullWarningShown = true;
             updateStatus(`Hand Full! Click again to reset to 1.`);
             return;
@@ -234,7 +287,7 @@ function handleMovePhase(area, row, col) {
     // Check if valid move target
     if (!isValidMove(area, row, col)) {
         // If clicking source again, handle as selection cycle
-        if (selectedSource && area === selectedSource.area && row === selectedSource.row && col === selectedSource.col) {
+        if (selectedSource && area === selectedSource.area && row === selectedSource.row && selectedSource.col === col) {
             handleSelectPhase(area, row, col);
             return;
         }
@@ -292,6 +345,22 @@ function isValidMove(targetArea, targetRow, targetCol) {
     const isHome = isHomeGarden(targetArea, targetRow);
     const isTargetHigh = isTargetHighGarden(targetArea, targetRow);
     const isPlayingField = targetArea === 'top' || targetArea === 'bottom';
+
+    // GARDEN ENTRY PROTECTION
+    if (targetArea === 'garden') {
+        // 1. Never enter the opponent's GOAL garden.
+        const oppGoal = currentPlayer === 'white' ? G_TOP_RIGHT : G_TOP_LEFT; // Corrected: White's opp goal is Black's goal, Black's opp goal is White's goal
+        if (targetRow === oppGoal) return false;
+
+        // 2. Only enter gardens that are your Home or your target Goal.
+        // Or the opponent's home garden (dumping rule)
+        const isOppositeHome = (currentPlayer === 'white' && targetRow === G_BOT_RIGHT) ||
+            (currentPlayer === 'black' && targetRow === G_BOT_LEFT);
+
+        if (!isHome && !isTargetHigh && !isOppositeHome) {
+            return false;
+        }
+    }
 
     if (isPlayingField && targetStack.length > 0 && isOwner(targetStack, currentPlayer)) {
         // return false; // REMOVED: Allow stacking on own color in playing field
@@ -365,7 +434,7 @@ function isAdjacent(pos1, pos2) {
     // "Two 5x3 fields... separated by a wall". Usually implies NO crossing.
     // But how do you get from bottom to top?
     // Maybe the gardens connect them?
-    // G0 connects to Top-Left. G1 connects to Bot-Left.
+    // G0 (Top) connects to Top-Left. G1 (Bot) connects to Bot-Left.
     // So path: Bot-Left -> G1 -> ??? -> G0 -> Top-Left?
     // No, G1 is Home. You start there. You move out to Bottom Field.
     // You need to get to Top Field.
@@ -374,7 +443,7 @@ function isAdjacent(pos1, pos2) {
     // "separated by a wall".
     // Usually in board games, walls block.
     // Are the gardens the only way?
-    // G1 (Bot) -> Bottom Field -> G2 (Bot)? No.
+    // G1 (Bot) -> Bottom Field -> ... -> G2 (Bot)? No.
     // Let's look at the image.
     // There are 4 gardens.
     // Left side: G0 (Top), G1 (Bot). Stairs between them.
@@ -461,6 +530,21 @@ function executeMoveStep(area, row, col) {
             for (let i = 0; i < hand.length; i++) sourceStack.pop();
         }
 
+        // Track AI consecutive moves with the same stone (across turns)
+        if (currentPlayer === 'black') {
+            if (aiLastMovedStone &&
+                aiLastMovedStone.area === selectedSource.area &&
+                aiLastMovedStone.row === selectedSource.row &&
+                aiLastMovedStone.col === selectedSource.col) {
+                aiConsecutiveMoveCount++;
+            } else {
+                aiConsecutiveMoveCount = 1;
+            }
+        } else {
+            aiLastMovedStone = null;
+            aiConsecutiveMoveCount = 0;
+        }
+
         turnPhase = 'MOVING';
     }
 
@@ -482,6 +566,11 @@ function executeMoveStep(area, row, col) {
         targetStack.push(stone);
     }
 
+    // Update AI's last moved location to where the stone ENDED
+    if (currentPlayer === 'black' && hand.length === 0) {
+        aiLastMovedStone = { area, row, col };
+    }
+
     // 3. Record history
     moveHistory.push({ area, row, col });
 
@@ -496,6 +585,8 @@ function executeMoveStep(area, row, col) {
 }
 
 function endTurn() {
+    if (turnPhase === 'GAME_OVER') return;
+
     // 1. Staircase Logic
     processStaircases();
 
@@ -504,20 +595,482 @@ function endTurn() {
 
     // 3. Switch Player
     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+    currentTurnId++;
     resetTurnState();
 
     // 4. Check for No Valid Moves (Special Rule)
     if (!hasValidMoves(currentPlayer)) {
-        // Enable Special Restack Mode?
-        // For now, just show message
         showMessage(`${currentPlayer.toUpperCase()} has no valid moves! Select a tower to restack.`);
-        // Implement restack logic later or handle manually
+        // If it's the AI and it's stuck, we must force it to end its turn or it will hang
+        if (isVsComputer && currentPlayer === 'black') {
+            setTimeout(() => {
+                if (currentPlayer === 'black') endTurn();
+            }, 2000);
+        }
     }
 
     drawBoard();
     updateStatus();
     updateCounts();
+
+    if (turnPhase !== 'GAME_OVER' && isVsComputer && currentPlayer === 'black') {
+        if (aiActionTimeout) clearTimeout(aiActionTimeout);
+        aiActionTimeout = setTimeout(makeAIMove, 600);
+
+        // WATCHDOG: If AI is stuck for 5 seconds, force a random move
+        setTimeout(() => {
+            if (isVsComputer && currentPlayer === 'black' && turnPhase !== 'GAME_OVER' && isAiThinking) {
+                console.warn("AI Watchdog triggered! Forcing random move.");
+                forceRandomMove();
+            }
+        }, 5000);
+    }
 }
+
+function forceRandomMove() {
+    if (currentPlayer !== 'black' || turnPhase === 'GAME_OVER') return;
+
+    // Clear thinking flag so we don't block the next turn
+    isAiThinking = false;
+
+    // Find ANY legal move
+    const possible = [];
+    // Just try gardens first for simplicity
+    board.gardens.forEach((g, row) => {
+        if (g.includes('black')) possible.push({ area: 'garden', row, col: 0 });
+    });
+    // Fields
+    [board.topField, board.bottomField].forEach((f, fIdx) => {
+        const area = fIdx === 0 ? 'top' : 'bottom';
+        f.forEach((r, row) => {
+            r.forEach((s, col) => {
+                if (getTopColor(s) === 'black') possible.push({ area, row, col });
+            });
+        });
+    });
+
+    if (possible.length > 0) {
+        const src = possible[Math.floor(Math.random() * possible.length)];
+        handleSelectPhase(src.area, src.row, src.col);
+
+        // Find ANY valid target
+        const targets = [];
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 5; c++) {
+                if (isValidMove('top', r, c)) targets.push({ area: 'top', row: r, col: c });
+                if (isValidMove('bottom', r, c)) targets.push({ area: 'bottom', row: r, col: c });
+            }
+        }
+        for (let g = 0; g < 4; g++) {
+            if (isValidMove('garden', g, 0)) targets.push({ area: 'garden', row: g, col: 0 });
+        }
+
+        if (targets.length > 0) {
+            const tgt = targets[Math.floor(Math.random() * targets.length)];
+            handleMovePhase(tgt.area, tgt.row, tgt.col);
+            return;
+        }
+    }
+
+    // If no moves found, just end the turn
+    endTurn();
+}
+
+// ============================================
+// AI LOGIC
+// ============================================
+
+// Helper to evaluate board state
+const evaluateBoardState = () => {
+    let score = 0;
+    // 1. Stones in High Garden (Win Condition)
+    // Correct Full Loop:
+    // White starts G1(BL) -> G2(BR) Launchpad -> G3(TR) Upstairs -> G0(TL) WIN
+    // Black starts G2(BR) -> G1(BL) Launchpad -> G0(TL) Upstairs -> G3(TR) WIN
+    score += board.gardens[G_TOP_RIGHT].filter(s => s === 'black').length * 12000;
+    score -= board.gardens[G_TOP_LEFT].filter(s => s === 'white').length * 12000;
+
+    // 2. Launchpad/Staircase Progress
+    // Black MUST enter G_BOT_LEFT (1) to reach G_TOP_LEFT (0)
+    const blackInLaunchpad = board.gardens[G_BOT_LEFT].filter(s => s === 'black').length;
+    score += blackInLaunchpad * 1500;
+
+    // 3. Home Garden Management
+    const myBlackHome = board.gardens[G_BOT_RIGHT];
+    const myBlackAtHome = myBlackHome.filter(s => s === 'black').length;
+    // Minor reward for having stones at home, but heavily outweighed by progression
+    score += myBlackAtHome * 20;
+
+    // 3. Control of Field (Top of stacks)
+    const evaluateField = (field, area) => {
+        field.forEach((r, rIdx) => {
+            r.forEach((stack, cIdx) => {
+                const topColor = getTopColor(stack);
+                const length = stack.length;
+                if (topColor === 'black') {
+                    // Exponential Stacking Reward
+                    score += length * length * 8;
+
+                    // Capture Bonus
+                    if (length > 1) {
+                        const hasOpponent = stack.some(s => s === 'white');
+                        if (hasOpponent) score += 150;
+                    }
+
+                    // PROGRESSION REWARD:
+                    if (area === 'bottom') {
+                        // Bottom Field: Black moves Right to Left (towards G1)
+                        score += (4 - cIdx) * 60;
+                    } else if (area === 'top') {
+                        // Top Field: Black moves Left to Right (towards G3)
+                        score += 1000; // Bonus for being in Top Field
+                        score += cIdx * 60;
+                    }
+                } else if (topColor === 'white') {
+                    score -= 50;
+                }
+            });
+        });
+    };
+    evaluateField(board.topField, 'top');
+    evaluateField(board.bottomField, 'bottom');
+
+    // 4. Opponent Control: Penalize White's progress
+    const whiteInLaunchpad = board.gardens[G_BOT_RIGHT].filter(s => s === 'white').length;
+    score -= whiteInLaunchpad * 500; // Very bad if white enters our home to ascend
+
+    return score;
+};
+
+// Deep copy helper for simulation
+const cloneBoard = (b) => {
+    return {
+        topField: b.topField.map(r => r.map(stack => [...stack])),
+        bottomField: b.bottomField.map(r => r.map(stack => [...stack])),
+        gardens: b.gardens.map(g => [...g])
+    };
+};
+
+const getSimStack = (b, area, row, col) => {
+    if (area === 'garden') return b.gardens[row];
+    if (area === 'top') return b.topField[row][col];
+    if (area === 'bottom') return b.bottomField[row][col];
+    return null;
+};
+
+// Simulate a full path
+const simulateMove = (pickup, path) => {
+    const simBoard = cloneBoard(board);
+    const sourceStack = getSimStack(simBoard, pickup.area, pickup.row, pickup.col);
+    let simHand = [];
+
+    if (pickup.area === 'garden') {
+        // Block selection from actual Goal Gardens in simulation
+        if (isTargetHighGarden('garden', pickup.row)) return null;
+
+        const newStack = [];
+        let extracted = 0;
+        for (let i = sourceStack.length - 1; i >= 0; i--) {
+            if (sourceStack[i] === 'black' && extracted < pickup.count) {
+                extracted++;
+            } else {
+                newStack.unshift(sourceStack[i]);
+            }
+        }
+        simBoard.gardens[pickup.row] = newStack;
+        simHand = Array(pickup.count).fill('black');
+    } else {
+        // Check for Emergency Lift (AI only takes its own color if blocked)
+        if (pickup.isEmergency) {
+            const myStones = sourceStack.filter(s => s === 'black');
+            const others = sourceStack.filter(s => s !== 'black');
+            // Simulating the lift: mine at top, others at bottom
+            sourceStack.length = 0;
+            sourceStack.push(...others, ...myStones);
+        }
+        simHand = sourceStack.splice(sourceStack.length - pickup.count, pickup.count);
+    }
+
+    // Apply drops
+    for (const step of path) {
+        if (simHand.length === 0) break; // Defensive: shouldn't happen but prevents errors
+        const targetStack = getSimStack(simBoard, step.area, step.row, step.col);
+        if (step.area === 'garden') {
+            while (simHand.length > 0) targetStack.push(simHand.shift());
+        } else {
+            targetStack.push(simHand.shift());
+        }
+    }
+    return simBoard;
+};
+
+function makeAIMove() {
+    if (turnPhase === 'GAME_OVER' || currentPlayer !== 'black' || isAiThinking) return;
+
+    isAiThinking = true;
+    updateStatus("AI is thinking...");
+
+    const oldSource = selectedSource;
+    const oldHand = [...hand];
+    const oldPhase = turnPhase;
+    const oldHistory = [...moveHistory];
+
+    const possibleSources = [];
+
+    // 1. Collect Garden Sources
+    board.gardens.forEach((g, row) => {
+        const myStones = g.filter(s => s === 'black').length;
+        if (myStones > 0) {
+            // Gardens can cycle 1-5 stones
+            for (let count = 1; count <= Math.min(myStones, 5); count++) {
+                possibleSources.push({ area: 'garden', row, col: 0, count });
+            }
+        }
+    });
+
+    // 2. Collect Field Sources (Top and Bottom)
+    const addFieldSources = (area, fieldGrid) => {
+        fieldGrid.forEach((r, row) => {
+            r.forEach((stack, col) => {
+                if (stack && stack.length > 0 && getTopColor(stack) === 'black') {
+                    possibleSources.push({ area, row, col, count: stack.length });
+                }
+            });
+        });
+    };
+    addFieldSources('top', board.topField);
+    addFieldSources('bottom', board.bottomField);
+
+    // 3. Collect Emergency Buried Sources if completely blocked
+    if (possibleSources.length === 0) {
+        const addBuriedSources = (area, fieldGrid) => {
+            fieldGrid.forEach((r, row) => {
+                r.forEach((stack, col) => {
+                    if (stack && stack.includes('black')) {
+                        possibleSources.push({ area, row, col, count: stack.length, isEmergency: true });
+                    }
+                });
+            });
+        };
+        addBuriedSources('top', board.topField);
+        addBuriedSources('bottom', board.bottomField);
+    }
+
+    const allMoveCandidates = [];
+
+    // 4. Generate Adjacencies for each Source
+    possibleSources.forEach(src => {
+        const sweepSource = selectedSource;
+        const sweepHand = [...hand];
+        const sweepPhase = turnPhase;
+        const sweepHistory = [...moveHistory];
+
+        selectedSource = { area: src.area, row: src.row, col: src.col };
+        hand = Array(src.count).fill('black');
+        turnPhase = 'SELECT';
+        moveHistory = [];
+
+        const tryAddTarget = (tgtArea, tgtRow, tgtCol) => {
+            if (isValidMove(tgtArea, tgtRow, tgtCol)) {
+                // Option A: Drop all here (Slam Dunk)
+                allMoveCandidates.push({
+                    src: { ...src },
+                    path: Array(src.count).fill({ area: tgtArea, row: tgtRow, col: tgtCol })
+                });
+
+                // Option B: Stride! (Move one-by-one)
+                // We generate a forward-moving stride path if possible
+                if (src.count > 1) {
+                    const stridePath = generateAdvancedStride(src, { area: tgtArea, row: tgtRow, col: tgtCol });
+                    if (stridePath && stridePath.length > 1) {
+                        allMoveCandidates.push({ src: { ...src }, path: stridePath });
+                    }
+                }
+            }
+        };
+
+        // Sweep all fields and gardens for neighbors
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 5; c++) {
+                tryAddTarget('top', r, c);
+                tryAddTarget('bottom', r, c);
+            }
+        }
+        for (let g = 0; g < 4; g++) {
+            tryAddTarget('garden', g, 0);
+        }
+
+        selectedSource = sweepSource;
+        hand = sweepHand;
+        turnPhase = sweepPhase;
+        moveHistory = sweepHistory;
+    });
+
+    console.log("AI thinking started. Candidates: " + allMoveCandidates.length);
+
+    let bestMove = null;
+    let bestScore = -Infinity;
+    let currentIndex = 0;
+    const batchSize = 60; // Slightly larger batches for efficiency
+
+    const processBatch = () => {
+        if (!isAiThinking || currentPlayer !== 'black') return;
+
+        const end = Math.min(currentIndex + batchSize, allMoveCandidates.length);
+        for (; currentIndex < end; currentIndex++) {
+            const move = allMoveCandidates[currentIndex];
+            const simBoard = simulateMove(move.src, move.path);
+            if (!simBoard) continue;
+
+            const realBoard = board;
+            board = simBoard;
+            const score = evaluateBoardState() + (Math.random() * 5);
+            board = realBoard;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
+            }
+        }
+
+        if (currentIndex < allMoveCandidates.length) {
+            updateStatus(`AI is thinking... (${Math.round(currentIndex / allMoveCandidates.length * 100)}%)`);
+            aiActionTimeout = setTimeout(processBatch, 0);
+        } else {
+            console.log("AI thinking completed. Best Move Score: " + bestScore);
+            finalizeAIMove(bestMove, oldSource, oldHand, oldPhase, oldHistory);
+        }
+    };
+
+    if (allMoveCandidates.length === 0) {
+        console.warn("AI found NO move candidates.");
+        finalizeAIMove(null, oldSource, oldHand, oldPhase, oldHistory);
+    } else {
+        processBatch();
+    }
+}
+
+function generateAdvancedStride(src, firstStep) {
+    const path = [firstStep];
+    const visited = [
+        { area: src.area, row: src.row, col: src.col },
+        { area: firstStep.area, row: firstStep.row, col: firstStep.col }
+    ];
+
+    let currentPos = firstStep;
+
+    // Greedy forward momentum search
+    for (let i = 1; i < src.count; i++) {
+        const neighbors = [];
+
+        // Find potential next steps
+        const sweepNeighbors = (area, rows, cols) => {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (isAdjacent(currentPos, { area, row: r, col: c })) {
+                        neighbors.push({ area, row: r, col: c });
+                    }
+                }
+            }
+        };
+        sweepNeighbors('top', 3, 5);
+        sweepNeighbors('bottom', 3, 5);
+        for (let g = 0; g < 4; g++) {
+            if (isAdjacent(currentPos, { area: 'garden', row: g, col: 0 })) {
+                neighbors.push({ area: 'garden', row: g, col: 0 });
+            }
+        }
+
+        // Filter valid neighbors (no repeats, check rules)
+        // Temporarily modify state to check isValidMove
+        const sweepSource = selectedSource;
+        const sweepHand = [...hand];
+        const sweepPhase = turnPhase;
+        const sweepHistory = [...moveHistory];
+
+        selectedSource = { area: src.area, row: src.row, col: src.col };
+        hand = Array(src.count - i).fill('black'); // remaining stones
+        turnPhase = 'MOVING';
+        moveHistory = [...visited];
+
+        const validNeighbors = neighbors.filter(n => {
+            // Internal check to avoid repeats (isValidMove does this but we want to be safe)
+            if (visited.some(v => v.area === n.area && v.row === n.row && v.col === n.col)) return false;
+            return isValidMove(n.area, n.row, n.col);
+        }).sort((a, b) => {
+            // Heuristic for "Forward"
+            const scorePos = (pos) => {
+                if (pos.area === 'garden') {
+                    if (pos.row === G_TOP_RIGHT) return 5000; // WIN TARGET
+                    if (pos.row === G_BOT_LEFT) return 1000; // Ascend target
+                    return 0;
+                }
+                if (pos.area === 'bottom') return (4 - pos.col) * 100;
+                if (pos.area === 'top') return 2000 + pos.col * 100;
+                return 0;
+            };
+            return scorePos(b) - scorePos(a);
+        });
+
+        // Restore state
+        selectedSource = sweepSource;
+        hand = sweepHand;
+        turnPhase = sweepPhase;
+        moveHistory = sweepHistory;
+
+        if (validNeighbors.length > 0) {
+            const next = validNeighbors[0]; // Take best forward neighbor
+            path.push(next);
+            visited.push(next);
+            currentPos = next;
+        } else {
+            // Stuck? Drop remaining here
+            path.push(currentPos);
+        }
+    }
+    return path;
+}
+
+function finalizeAIMove(bestMove, oldSource, oldHand, oldPhase, oldHistory) {
+    selectedSource = oldSource;
+    hand = [...oldHand];
+    turnPhase = oldPhase;
+    moveHistory = [...oldHistory];
+    isAiThinking = false;
+
+    if (!bestMove) {
+        showMessage("Black has no moves.");
+        endTurn();
+        return;
+    }
+
+    const executionTurnId = currentTurnId;
+    const executionTurnPlayer = currentPlayer;
+
+    // Execute visuals
+    selectedSource = null;
+    if (bestMove.src.area === 'garden') {
+        for (let i = 0; i < bestMove.src.count; i++) {
+            if (currentTurnId !== executionTurnId) return;
+            handleSelectPhase(bestMove.src.area, bestMove.src.row, bestMove.src.col);
+        }
+    } else {
+        if (currentTurnId !== executionTurnId) return;
+        handleSelectPhase(bestMove.src.area, bestMove.src.row, bestMove.src.col);
+    }
+
+    let i = 0;
+    const executeNextDrop = () => {
+        if (turnPhase === 'GAME_OVER' || currentPlayer !== executionTurnPlayer || currentTurnId !== executionTurnId) return;
+        if (i < bestMove.path.length) {
+            handleMovePhase(bestMove.path[i].area, bestMove.path[i].row, bestMove.path[i].col);
+            i++;
+            aiActionTimeout = setTimeout(executeNextDrop, 400);
+        }
+    };
+    aiActionTimeout = setTimeout(executeNextDrop, 400);
+}
+
 
 function updateStatus(msg) {
     if (msg) {
@@ -624,8 +1177,11 @@ function processStaircases() {
 
 function checkWin() {
     // Goal: 7 stones in High Garden
-    // White High: G0
-    // Black High: G3
+    // Journey: Start Garden -> Field -> Launchpad -> Upstairs -> Field -> Win Garden
+
+    // WIN LOCATIONS:
+    // White targets G0 (Top Left)
+    // Black targets G3 (Top Right)
 
     const whiteHigh = board.gardens[G_TOP_LEFT];
     const blackHigh = board.gardens[G_TOP_RIGHT];
@@ -635,13 +1191,13 @@ function checkWin() {
 
     if (whiteScore >= BOARD_CONFIG.winCount) {
         turnPhase = 'GAME_OVER';
-        showGameOverModal('White Wins!', 'White wins by gathering 7 stones in the High Garden!');
+        showGameOverModal('White Wins!', 'White wins by gathering 7 stones in the Top-Left High Garden!');
         return true;
     }
 
     if (blackScore >= BOARD_CONFIG.winCount) {
         turnPhase = 'GAME_OVER';
-        showGameOverModal('Black Wins!', 'Black wins by gathering 7 stones in the High Garden!');
+        showGameOverModal('Black Wins!', 'Black wins by gathering 7 stones in the Top-Right High Garden!');
         return true;
     }
 
@@ -658,15 +1214,51 @@ function isHomeGarden(area, index) {
 
 function isTargetHighGarden(area, index) {
     if (area !== 'garden') return false;
+    // White Win: G0 (Top Left)
+    // Black Win: G3 (Top Right)
     if (currentPlayer === 'white') return index === G_TOP_LEFT;
     if (currentPlayer === 'black') return index === G_TOP_RIGHT;
     return false;
 }
 
+function isPlayerBlocked(player) {
+    // 1. Check gardens (except the Goal Garden)
+    const targetGoal = player === 'white' ? G_TOP_LEFT : G_TOP_RIGHT;
+    for (let i = 0; i < 4; i++) {
+        if (i === targetGoal) continue; // Goal stones are permanent/unmovable
+        if (board.gardens[i].includes(player)) return false;
+    }
+
+    // 2. Check field tops
+    const checkField = (field) => {
+        for (const row of field) {
+            for (const stack of row) {
+                if (getTopColor(stack) === player) return true;
+            }
+        }
+        return false;
+    };
+    if (checkField(board.topField) || checkField(board.bottomField)) return false;
+
+    // A player is truly blocked only if they HAVE stones buried.
+    // Otherwise they just have no stones on board (they lost or it's a game state error).
+    const hasAnyStones = (field) => {
+        for (const row of field) {
+            for (const stack of row) {
+                if (stack.includes(player)) return true;
+            }
+        }
+        return false;
+    };
+    return hasAnyStones(board.topField) || hasAnyStones(board.bottomField);
+}
+
 function hasValidMoves(player) {
-    // Simplified check - just check if player has ANY stones on board
-    // A real check would simulate all possible moves
-    return true;
+    if (!isPlayerBlocked(player)) return true;
+
+    // If blocked, they HAVE valid moves IF they have buried stones (Emergency Lift)
+    // The check in isPlayerBlocked already covers "has buried stones" as the last check.
+    return isPlayerBlocked(player);
 }
 
 // ============================================
@@ -840,6 +1432,9 @@ function createStackElement(stack) {
 
 function updateCounts() {
     // Count stones in High Gardens
+    // Full Loop targets:
+    // White Win: G0 (Top Left)
+    // Black Win: G3 (Top Right)
     const wScore = board.gardens[G_TOP_LEFT].filter(s => s === 'white').length;
     const bScore = board.gardens[G_TOP_RIGHT].filter(s => s === 'black').length;
 
@@ -868,6 +1463,13 @@ cancelButton.addEventListener('click', () => {
         resetTurnState();
         drawBoard();
         updateStatus();
+    }
+});
+opponentButton.addEventListener('click', () => {
+    isVsComputer = !isVsComputer;
+    opponentButton.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
+    if (isVsComputer && currentPlayer === 'black' && turnPhase !== 'GAME_OVER') {
+        setTimeout(makeAIMove, 600);
     }
 });
 

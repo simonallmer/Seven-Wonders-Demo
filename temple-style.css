@@ -281,6 +281,16 @@ body::before {
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 
+.opponent-btn {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(37, 99, 235, 0.85));
+    color: white;
+}
+
+.opponent-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
 .action-btn:active:not(:disabled) {
     transform: translateY(0);
 }

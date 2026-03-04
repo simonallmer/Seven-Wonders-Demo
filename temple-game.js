@@ -32,6 +32,12 @@ let validMoves = [];
 let gameState = 'SELECT_STONE';
 let isInLeapChain = false;
 let leapChainStart = null;
+let isVsComputer = false;
+let moveHistory = []; // Track path directions for leap chaining constraint
+
+// Track AI behavior to prevent loops
+let aiLastMovedStone = null; // {row, col}
+let aiConsecutiveMoveCount = 0;
 
 // ============================================
 // DOM ELEMENTS
@@ -41,6 +47,7 @@ const statusElement = document.getElementById('game-status');
 const playerColorElement = document.getElementById('current-player-color');
 const messageBox = document.getElementById('message-box');
 const resetButton = document.getElementById('reset-button');
+const opponentButton = document.getElementById('opponent-btn');
 const cancelButton = document.getElementById('cancel-button');
 const gameOverModal = document.getElementById('game-over-modal');
 const modalTitle = document.getElementById('modal-title');
@@ -92,6 +99,7 @@ function initializeBoard() {
     validMoves = [];
     gameState = 'SELECT_STONE';
     isInLeapChain = false;
+    moveHistory = [];
     leapChainStart = null;
 
     drawBoard();
@@ -739,9 +747,31 @@ function executeMove(move) {
     const fromNode = board.get(fromKey);
     const toNode = board.get(toKey);
 
+    // Track AI consecutive moves with the same stone (across turns)
+    if (currentPlayer === 'black' && !isInLeapChain) {
+        if (aiLastMovedStone &&
+            aiLastMovedStone.row === selectedStone.row &&
+            aiLastMovedStone.col === selectedStone.col) {
+            aiConsecutiveMoveCount++;
+        } else {
+            aiConsecutiveMoveCount = 1;
+        }
+        // Update to the NEW position for the next turn's check
+        aiLastMovedStone = { row: move.row, col: move.col };
+    } else if (currentPlayer === 'white') {
+        aiLastMovedStone = null;
+        aiConsecutiveMoveCount = 0;
+    } else if (currentPlayer === 'black' && isInLeapChain) {
+        // Just update location during chain
+        aiLastMovedStone = { row: move.row, col: move.col };
+    }
+
     // Move the stone
     toNode.piece = fromNode.piece;
     fromNode.piece = null;
+
+    // Record move in history
+    moveHistory.push(move);
 
     let message = '';
 
@@ -789,6 +819,10 @@ function executeMove(move) {
             drawBoard();
             updateStatus();
             updateUI();
+
+            if (isVsComputer && currentPlayer === 'black') {
+                setTimeout(makeAIMove, 400); // Slower for visibility
+            }
             return;
         } else {
             // No more leaps available - auto-end turn
@@ -829,9 +863,106 @@ function endTurn() {
     leapChainStart = null;
     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
     gameState = 'SELECT_STONE';
+    moveHistory = [];
     drawBoard();
     updateStatus();
     updateUI();
+
+    if (gameState !== 'GAME_OVER' && isVsComputer && currentPlayer === 'black') {
+        setTimeout(makeAIMove, 600);
+    }
+}
+
+// ============================================
+// AI LOGIC
+// ============================================
+
+function makeAIMove() {
+    if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
+
+    let possibleMoves = [];
+
+    // Gather all possible starting moves for black
+    if (isInLeapChain) {
+        // AI MUST continue the chain from current selectedStone
+        const leapMoves = calculateLeapMoves(selectedStone.row, selectedStone.col, true, moveHistory[moveHistory.length - 1]?.direction);
+        leapMoves.forEach(move => {
+            possibleMoves.push({ stone: { row: selectedStone.row, col: selectedStone.col }, move: move });
+        });
+    } else {
+        board.forEach((node, key) => {
+            if (node.piece === 'black') {
+                const walkMoves = calculateWalkMoves(node.row, node.col);
+                const leapMoves = calculateLeapMoves(node.row, node.col);
+                const moves = [...walkMoves, ...leapMoves];
+                moves.forEach(move => {
+                    possibleMoves.push({ stone: { row: node.row, col: node.col }, move: move });
+                });
+            }
+        });
+    }
+
+    if (possibleMoves.length === 0) {
+        showMessage("Black has no valid moves.");
+        endTurn();
+        return;
+    }
+
+    let bestMove = null;
+    let bestScore = -Infinity;
+
+    possibleMoves.forEach(action => {
+        let score = 0;
+        const { stone, move } = action;
+
+        // 1. Win condition
+        const targetNode = board.get(`${move.row},${move.col}`);
+        if (targetNode && targetNode.isArtemis && targetNode.row === 8) { // Black targets row 8
+            score += 10000;
+        }
+
+        // 2. Capture opponent
+        if (move.capture) {
+            score += 500;
+        }
+
+        // 3. Distance to target/Advancement (Black wants to go down to row 8)
+        score += (move.row - stone.row) * 10; // Positive if moving down
+        score += move.row * 5; // Absolute position ranking
+
+        // 4. Loop Prevention: Penalize moving the same stone too many times in a row
+        if (!isInLeapChain && aiLastMovedStone &&
+            aiLastMovedStone.row === stone.row &&
+            aiLastMovedStone.col === stone.col) {
+            if (aiConsecutiveMoveCount >= 2) score -= 300;
+            else if (aiConsecutiveMoveCount >= 1) score -= 50;
+        }
+
+        // 4. Leap of faith is bad unless it's a capture (already scored)
+        if (move.offBoard) {
+            score -= 200; // Penalize losing own stone, even if it captures. (Net score: 500 - 200 = 300)
+        }
+
+        score += Math.random() * 5;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = action;
+        }
+    });
+
+    if (bestMove) {
+        // Execute the move visually
+        selectedStone = bestMove.stone; // mock select
+
+        if (bestMove.move.offBoard) {
+            handleLeapOfFaith(bestMove.move);
+        } else {
+            executeMove(bestMove.move);
+        }
+    } else {
+        endTurn(); // fallback
+    }
 }
 
 // ============================================
@@ -840,6 +971,17 @@ function endTurn() {
 
 resetButton.addEventListener('click', initializeBoard);
 cancelButton.addEventListener('click', cancelMove);
+let _opponentBtnTimeout = null;
+opponentButton.addEventListener('click', () => {
+    // Computer mode is coming soon — revert immediately after showing the message
+    clearTimeout(_opponentBtnTimeout);
+    isVsComputer = false;
+    opponentButton.textContent = 'Computer Coming Soon';
+    _opponentBtnTimeout = setTimeout(() => {
+        opponentButton.textContent = 'Opponent: Human';
+    }, 1500);
+});
+
 
 // ============================================
 // INITIALIZATION

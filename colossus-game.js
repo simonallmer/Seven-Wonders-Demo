@@ -26,6 +26,11 @@ let selectedStone = null;
 let validMoves = [];
 let gameState = 'SELECT_STONE';
 let lastPushedStone = null; // Prevents immediate push-back
+let isVsComputer = false;
+
+// Track AI behavior to prevent loops
+let aiLastMovedStone = null; // {r, c}
+let aiConsecutiveMoveCount = 0;
 
 // ============================================
 // DOM ELEMENTS
@@ -38,6 +43,7 @@ const blackCountElement = document.getElementById('black-count');
 const messageBox = document.getElementById('message-box');
 const resetButton = document.getElementById('reset-button');
 const cancelButton = document.getElementById('cancel-button');
+const opponentButton = document.getElementById('opponent-btn');
 const gameOverModal = document.getElementById('game-over-modal');
 const modalTitle = document.getElementById('modal-title');
 const modalText = document.getElementById('modal-text');
@@ -470,6 +476,22 @@ async function executeMove(move) {
         }
     }
 
+    // Track AI consecutive moves with the same stone (across turns)
+    if (currentPlayer === 'black') {
+        if (aiLastMovedStone &&
+            aiLastMovedStone.row === selectedStone.row &&
+            aiLastMovedStone.col === selectedStone.col) {
+            aiConsecutiveMoveCount++;
+        } else {
+            aiConsecutiveMoveCount = 1;
+        }
+        // Update to the NEW position for the next turn's check
+        aiLastMovedStone = { row: move.row, col: move.col };
+    } else {
+        aiLastMovedStone = null;
+        aiConsecutiveMoveCount = 0;
+    }
+
     // Resolve Gravity after movement
     await resolveGravity(newlyActivatedDir);
 }
@@ -536,6 +558,9 @@ async function resolveGravity(prioritizedDir = null) {
         pendingGravityDirections = effectiveDirections;
         updateStatus(`Gravity Conflict! Click a directional field to choose which direction applies first.`);
         drawBoard(); // Redraw to show arrows
+        if (isVsComputer && currentPlayer === 'black') {
+            setTimeout(makeAIMove, 800);
+        }
     }
 }
 
@@ -797,6 +822,10 @@ function endTurn() {
     updateStatus();
     updateStoneCounts();
     updateUI();
+
+    if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
+        setTimeout(makeAIMove, 600);
+    }
 }
 
 // ============================================
@@ -805,6 +834,107 @@ function endTurn() {
 
 resetButton.addEventListener('click', initializeBoard);
 cancelButton.addEventListener('click', cancelMove);
+opponentButton.addEventListener('click', () => {
+    isVsComputer = !isVsComputer;
+    opponentButton.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
+    if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
+        setTimeout(makeAIMove, 600);
+    }
+});
+
+// ============================================
+// AI LOGIC
+// ============================================
+
+function makeAIMove() {
+    if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
+
+    if (gameState === 'SELECT_GRAVITY_ORDER') {
+        // AI chooses random gravity order
+        const dir = pendingGravityDirections[Math.floor(Math.random() * pendingGravityDirections.length)];
+        handleGravityChoice(dir);
+        return;
+    }
+
+    if (gameState !== 'SELECT_STONE') return;
+
+    // Colossus AI (Medium heuristic)
+    // 1. Gather all possible moves for all black stones
+    let allMoves = [];
+
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (board[r][c].piece === 'black') {
+                const runs = calculateRunMoves(r, c);
+                const pushes = calculatePushMoves(r, c);
+
+                runs.forEach(m => allMoves.push({ stone: { r, c }, move: m }));
+                pushes.forEach(m => allMoves.push({ stone: { r, c }, move: m }));
+            }
+        }
+    }
+
+    if (allMoves.length === 0) {
+        // No moves? End turn (Colossus rules may not cover passing, but fallback)
+        endTurn();
+        return;
+    }
+
+    let bestAction = null;
+    let bestScore = -Infinity;
+
+    // Helper: evaluate based on immediate targets without deep Hades simulation
+    allMoves.forEach(action => {
+        let score = 0;
+        const mr = action.move.row; const mc = action.move.col;
+
+        if (action.move.type === 'push') {
+            const pushedType = board[mr][mc].piece;
+            if (pushedType === 'white') score += 50; // good to push enemy
+            else score -= 10; // try not to push own stones unecessarily
+
+            const targetR = action.move.pushTo.row;
+            const targetC = action.move.pushTo.col;
+            if (board[targetR][targetC].directionField) {
+                // pushing onto a direction field triggers tilt
+                score += 30;
+            }
+        }
+
+        if (board[mr][mc].directionField) {
+            // landing on direction field triggers tilt
+            score += 25;
+        }
+
+        // prefer central positions (away from edges)
+        const distFromCenter = Math.abs(mr - 5) + Math.abs(mc - 5);
+        score += (8 - distFromCenter) * 2;
+
+        // Loop Prevention: Penalize moving the same stone too many times in a row
+        if (aiLastMovedStone &&
+            aiLastMovedStone.row === action.stone.r &&
+            aiLastMovedStone.col === action.stone.c) {
+            if (aiConsecutiveMoveCount >= 2) score -= 300;
+            else if (aiConsecutiveMoveCount >= 1) score -= 50;
+        }
+
+        // Add random variation
+        score += Math.random() * 5;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestAction = action;
+        }
+    });
+
+    if (bestAction) {
+        handleCellClick(bestAction.stone.r, bestAction.stone.c).then(() => {
+            setTimeout(() => {
+                handleCellClick(bestAction.move.row, bestAction.move.col);
+            }, 300);
+        });
+    }
+}
 
 // ============================================
 // INITIALIZATION
