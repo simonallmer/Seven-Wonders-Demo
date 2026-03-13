@@ -476,6 +476,9 @@ class View2D {
         }
         ctx.globalAlpha = 1.0;
 
+        // Art Deco Connection Lines (Behind the board)
+        this.drawDecoLines();
+
         // Section Labels
         ctx.fillStyle = '#C5A059';
         ctx.font = `bold ${cs*0.7}px serif`;
@@ -588,6 +591,87 @@ class View2D {
             ctx.lineWidth = 1.5;
             ctx.strokeRect(px + 1.5, py + 1.5, cs - 3, cs - 3);
         }
+    }
+
+    drawDecoLines() {
+        const ctx = this.ctx;
+        const cs = this.cellSize;
+        const H = this.game.H;
+        
+        ctx.save();
+        ctx.strokeStyle = '#C5A059';
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.25;
+
+        // The connections are between the outer lines of adjacent side faces.
+        // Northwest Corner (North edge <-> West edge)
+        // Northeast Corner (North edge <-> East edge)
+        // Southwest Corner (South edge <-> West edge)
+        // Southeast Corner (South edge <-> East edge)
+
+        for (let w = this.game.wStart; w < H; w++) {
+            for (let i = 0; i < 5; i++) {
+                // North face pos: u=i, v=0, w=w
+                const posN = this.getCanvasPos(i, 0, w, 'north');
+                // South face pos: u=i, v=4, w=w
+                const posS = this.getCanvasPos(i, 4, w, 'south');
+                // West face pos: u=0, v=i, w=w
+                const posW = this.getCanvasPos(0, i, w, 'west');
+                // East face pos: u=4, v=i, w=w
+                const posE = this.getCanvasPos(4, i, w, 'east');
+
+                if (!posN || !posS || !posW || !posE) continue;
+
+                // Connection points (mid-outer edge)
+                // North outer edge: top of cell
+                const nPt = { x: (posN.x + 0.5) * cs, y: posN.y * cs };
+                // South outer edge: bottom of cell
+                const sPt = { x: (posS.x + 0.5) * cs, y: (posS.y + 1) * cs };
+                // West outer edge: left of cell
+                const wPt = { x: posW.x * cs, y: (posW.y + 0.5) * cs };
+                // East outer edge: right of cell
+                const ePt = { x: (posE.x + 1) * cs, y: (posE.y + 0.5) * cs };
+
+                // Northwest corner: North(u=0) connects to West(v=0), North(u=1) to West(v=1), etc.
+                // Wait, precise geometry in image: 
+                // North face far left (u=0) connects to West face far top (v=0)?
+                // Yes, indexed from center. North u=0 is left side. West v=0 is top side.
+                // So North(u=i) connects to West(v=i)
+                
+                // NW
+                const nw_posN = this.getCanvasPos(i, 0, w, 'north');
+                const nw_posW = this.getCanvasPos(0, i, w, 'west');
+                ctx.beginPath();
+                ctx.moveTo((nw_posN.x + 0.5) * cs, nw_posN.y * cs);
+                ctx.lineTo(nw_posW.x * cs, (nw_posW.y + 0.5) * cs);
+                ctx.stroke();
+
+                // NE
+                const ne_posN = this.getCanvasPos(4 - i, 0, w, 'north');
+                const ne_posE = this.getCanvasPos(4, i, w, 'east');
+                ctx.beginPath();
+                ctx.moveTo((ne_posN.x + 0.5) * cs, ne_posN.y * cs);
+                ctx.lineTo((ne_posE.x + 1) * cs, (ne_posE.y + 0.5) * cs);
+                ctx.stroke();
+
+                // SW
+                const sw_posS = this.getCanvasPos(i, 4, w, 'south');
+                const sw_posW = this.getCanvasPos(0, 4 - i, w, 'west');
+                ctx.beginPath();
+                ctx.moveTo((sw_posS.x + 0.5) * cs, (sw_posS.y + 1) * cs);
+                ctx.lineTo(sw_posW.x * cs, (sw_posW.y + 0.5) * cs);
+                ctx.stroke();
+
+                // SE
+                const se_posS = this.getCanvasPos(4 - i, 4, w, 'south');
+                const se_posE = this.getCanvasPos(4, 4 - i, w, 'east');
+                ctx.beginPath();
+                ctx.moveTo((se_posS.x + 0.5) * cs, (se_posS.y + 1) * cs);
+                ctx.lineTo((se_posE.x + 1) * cs, (se_posE.y + 0.5) * cs);
+                ctx.stroke();
+            }
+        }
+        ctx.restore();
     }
 
     drawStitchLines(ctx, c) {
@@ -1205,7 +1289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    document.getElementById('menu-trigger').onclick = () => {
+    const toggleMenu = () => {
         const trigger = document.getElementById('menu-trigger');
         const header = document.getElementById('main-header');
         const hud = document.getElementById('hud');
@@ -1213,6 +1297,15 @@ document.addEventListener('DOMContentLoaded', () => {
         header.classList.toggle('visible');
         hud.classList.toggle('visible');
     };
+
+    document.getElementById('menu-trigger').onclick = toggleMenu;
+
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && e.target === document.body) {
+            e.preventDefault();
+            toggleMenu();
+        }
+    });
 
     const aiBtn = document.getElementById('ai-btn');
     const aiMenu = document.getElementById('ai-menu');
