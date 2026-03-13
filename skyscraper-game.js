@@ -1,6 +1,7 @@
 // --- Core Game Logic ---
 class SkyscraperGame {
     constructor(numPlayers = 2) {
+        this.onStateChange = null; // Initialised once; setMode must never reset this
         this.setMode(numPlayers);
     }
 
@@ -12,7 +13,7 @@ class SkyscraperGame {
         this.colors = ['white', 'red', 'blue', 'green'].slice(0, numPlayers);
         this.totalPlayableCells = ((this.H - this.wStart) * 5 * 4) + (5 * 5); // 4 sides + roof
         this.winThreshold = Math.floor(this.totalPlayableCells / this.numPlayers) + 1;
-        this.onStateChange = null;
+        // NOTE: onStateChange is intentionally NOT reset here so the UI callback survives mode changes
         this.turnCount = 0;
         this.reset();
     }
@@ -1278,13 +1279,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         v2d.draw(); v3d.update();
         if (game.gameOver) {
-            let winColor = 'white';
+            let winColor = game.colors[0];
             let maxSc = -1;
-            ['white', 'red', 'blue', 'green'].forEach(c => {
-                if (game.scores[c] > maxSc) { maxSc = game.scores[c]; winColor = c; }
+            game.colors.forEach(c => {
+                if ((game.scores[c] || 0) > maxSc) { maxSc = game.scores[c]; winColor = c; }
             });
-            document.getElementById('msg-title').textContent = winColor.toUpperCase() + ' VICTORIOUS';
-            document.getElementById('msg-body').textContent = `Winning Score: ${maxSc}`;
+
+            // Human-readable win fraction label
+            const fractions = { 2: '½', 3: '⅓', 4: '¼' };
+            const fraction = fractions[game.numPlayers] || `1/${game.numPlayers}`;
+
+            // Friendly colour names ('white' is Yellow in the UI)
+            const colorNames = { white: 'Yellow', red: 'Red', blue: 'Blue', green: 'Green' };
+            const winName = colorNames[winColor] || winColor.toUpperCase();
+
+            document.getElementById('msg-title').textContent = `${winName} Wins!`;
+            document.getElementById('msg-body').textContent =
+                `${winName} controlled ${maxSc} field${maxSc !== 1 ? 's' : ''} — more than ${fraction} of the board.`;
             document.getElementById('message-modal').style.display = 'flex';
         }
     };
