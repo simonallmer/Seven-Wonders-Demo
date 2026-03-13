@@ -1246,22 +1246,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const modeMenu = document.getElementById('mode-menu');
     modeBtn.onclick = () => modeMenu.classList.toggle('visible');
 
+    const setPlayers = (players) => {
+        game.setMode(players);
+        modeBtn.textContent = players + ' Players';
+        modeMenu.classList.remove('visible');
+        document.getElementById('score-block-blue').style.display = players >= 3 ? 'flex' : 'none';
+        document.getElementById('score-block-green').style.display = players >= 4 ? 'flex' : 'none';
+        if (v3d) v3d.destroy();
+        v3d = new View3D(document.getElementById('canvas3d'), game);
+        v2d.resize();
+        v3d.resize();
+        if (game.onStateChange) game.onStateChange();
+    };
+
     modeMenu.querySelectorAll('button').forEach(btn => {
         btn.onclick = (e) => {
             e.stopPropagation();
-            const players = parseInt(btn.getAttribute('data-players'), 10);
-            game.setMode(players);
-            modeBtn.textContent = players + ' Players';
-            modeMenu.classList.remove('visible');
-
-            document.getElementById('score-block-blue').style.display = players >= 3 ? 'flex' : 'none';
-            document.getElementById('score-block-green').style.display = players >= 4 ? 'flex' : 'none';
-
-            if (v3d) v3d.destroy();
-            v3d = new View3D(document.getElementById('canvas3d'), game);
-            v2d.resize();
-            v3d.resize();
-            if (game.onStateChange) game.onStateChange();
+            setPlayers(parseInt(btn.getAttribute('data-players'), 10));
         };
     });
 
@@ -1312,10 +1313,34 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('menu-trigger').onclick = toggleMenu;
 
     document.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && e.target === document.body) {
+        if (e.target !== document.body) return;
+
+        // Space → open/close menu
+        if (e.code === 'Space') {
             e.preventDefault();
             toggleMenu();
         }
+
+        // Shift → toggle 2D / 3D view
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+            const is2d = document.getElementById('canvas2d').style.display === 'block';
+            if (is2d) {
+                document.getElementById('canvas2d').style.display = 'none';
+                document.getElementById('canvas3d').style.display = 'block';
+                viewBtn.textContent = 'View: 3D';
+                v3d.resize();
+            } else {
+                document.getElementById('canvas2d').style.display = 'block';
+                document.getElementById('canvas3d').style.display = 'none';
+                viewBtn.textContent = 'View: 2D';
+                v2d.resize();
+            }
+        }
+
+        // 2 / 3 / 4 → select player count
+        if (e.code === 'Digit2') setPlayers(2);
+        if (e.code === 'Digit3') setPlayers(3);
+        if (e.code === 'Digit4') setPlayers(4);
     });
 
     const aiBtn = document.getElementById('ai-btn');
