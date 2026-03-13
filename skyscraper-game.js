@@ -90,11 +90,11 @@ class SkyscraperGame {
         const H = this.H;
         let cells = [];
         if (w === H) cells.push({ x: u + H, y: v + H });
-        if (v === 0 && w < H) cells.push({ x: u + H, y: w });
-        if (v === 4 && w < H) cells.push({ x: u + H, y: (2 * H + 4) - w });
-        if (u === 0 && w < H) cells.push({ x: w, y: v + H });
-        if (u === 4 && w < H) cells.push({ x: (2 * H + 4) - w, y: v + H });
-        return cells.filter(c => this.isValidCell(c.x, c.y) && this.getZone(c.x, c.y) !== 'void');
+        if (v === 0 && w <= H) cells.push({ x: u + H, y: w });
+        if (v === 4 && w <= H) cells.push({ x: u + H, y: (2 * H + 4) - w });
+        if (u === 0 && w <= H) cells.push({ x: w, y: v + H });
+        if (u === 4 && w <= H) cells.push({ x: (2 * H + 4) - w, y: v + H });
+        return cells.filter(c => this.isValidCell(c.x, c.y));
     }
 
     setGlobally(x, y, color) {
@@ -374,59 +374,220 @@ class View2D {
         this.ctx = canvas.getContext('2d');
         this.game = game;
         this.colors = {
-            white: '#FDF5E6', red: '#FF4D4D', blue: '#0077FF', green: '#00FF00',
-            structure: '#0a0a0a', neutral: '#1a1a1a', highlight: 'rgba(197, 160, 89, 0.4)',
-            lastMove: '#FFFF00', deco: '#8A6D3B'
+            white: '#FFB000', red: '#FF4D4D', blue: '#0077FF', green: '#00FF00',
+            structure: '#0a0a0a', neutral: '#1a1a1a', highlight: 'rgba(255, 176, 0, 0.25)',
+            lastMove: '#FFFFFF', deco: '#C5A059'
         };
+        this.hoveredState = null; // {face, u, v, w}
+        this.gridUnits = 25;
+        this.setupInteraction();
     }
+
+    setupInteraction() {
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const cs = rect.width / this.gridUnits;
+            const vx = Math.floor((e.clientX - rect.left) / cs);
+            const vy = Math.floor((e.clientY - rect.top) / cs);
+            const state = this.getStateFromPos(vx, vy);
+            if (JSON.stringify(this.hoveredState) !== JSON.stringify(state)) {
+                this.hoveredState = state;
+                this.draw();
+            }
+        });
+
+        this.canvas.addEventListener('mouseleave', () => {
+            this.hoveredState = null;
+            this.draw();
+        });
+
+        this.canvas.addEventListener('click', (e) => {
+            if (this.hoveredState) {
+                const { u, v, w } = this.hoveredState;
+                const cells = this.game.get2DFrom3D(u, v, w);
+                if (cells.length > 0) {
+                    this.game.makeMove(cells[0].x, cells[0].y);
+                }
+            }
+        });
+    }
+
+    getStateFromPos(vx, vy) {
+        const H = this.game.H;
+        // Roof
+        for (let u = 0; u < 5; u++) {
+            for (let v = 0; v < 5; v++) {
+                const pos = this.getCanvasPos(u, v, H, 'roof');
+                if (pos && pos.x === vx && pos.y === vy) return { face: 'roof', u, v, w: H };
+            }
+        }
+        // Sides
+        for (let w = 0; w < H; w++) {
+            for (let i = 0; i < 5; i++) {
+                const faces = ['north', 'south', 'west', 'east'];
+                for (let face of faces) {
+                    let u = i, v = (face === 'north' ? 0 : 4);
+                    if (face === 'west' || face === 'east') { u = (face === 'west' ? 0 : 4); v = i; }
+                    const pos = this.getCanvasPos(u, v, w, face);
+                    if (pos && pos.x === vx && pos.y === vy) return { face, u, v, w };
+                }
+            }
+        }
+        return null;
+    }
+
     resize() {
         const rect = this.canvas.parentElement.getBoundingClientRect();
         const size = Math.min(rect.width, rect.height);
         this.canvas.width = size; this.canvas.height = size;
-        this.viewGridSize = this.game.numPlayers === 2 ? 15 : 25;
-        this.cellSize = size / this.viewGridSize;
+        this.cellSize = size / this.gridUnits;
         this.draw();
     }
 
-    getCanvasPos(u, v, w) {
-        const H = 9;
-        const offset = this.game.numPlayers === 2 ? 1 : 2;
-        if (w === H) return { x: offset * 5 + u, y: offset * 5 + v };
-
-        const isHigh = w >= 5;
-        const distFromCenter = isHigh ? 1 : 2;
-        let blockX = offset, blockY = offset;
-        let innerX = u, innerY = v;
-
-        if (v === 0) { blockY -= distFromCenter; innerY = 4 - (w % 5); }
-        else if (v === 4) { blockY += distFromCenter; innerY = w % 5; }
-        else if (u === 0) { blockX -= distFromCenter; innerX = 4 - (w % 5); }
-        else if (u === 4) { blockX += distFromCenter; innerX = w % 5; }
-        else return null;
-
-        return { x: blockX * 5 + innerX, y: blockY * 5 + innerY };
+    getCanvasPos(u, v, w, face) {
+        const ox = 10, oy = 10;
+        const H = this.game.H;
+        const dist = H - w;
+        if (face === 'roof') return { x: ox + u, y: oy + v };
+        if (face === 'north') return { x: ox + u, y: oy - 1 - dist };
+        if (face === 'south') return { x: ox + u, y: oy + 5 + dist };
+        if (face === 'west') return { x: ox - 1 - dist, y: oy + v };
+        if (face === 'east') return { x: ox + 5 + dist, y: oy + v };
+        return null;
     }
 
     draw() {
         if (!this.ctx) return;
         const ctx = this.ctx;
+        const cs = this.cellSize;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Coming Soon Overlay (Full Field Greyed Out)
-        ctx.fillStyle = 'rgba(10, 10, 10, 1.0)';
+        // Background
+        ctx.fillStyle = '#050505';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        ctx.fillStyle = '#C5A059';
-        ctx.font = 'bold ' + (this.canvas.width / 12) + 'px "Playfair Display", serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.letterSpacing = '12px';
-        ctx.fillText('COMING SOON', this.canvas.width / 2, this.canvas.height / 2);
-
-        // Add a subtle gold border to the placeholder
+        
+        // Subtle Golden Grid (Background)
         ctx.strokeStyle = '#C5A059';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(10, 10, this.canvas.width - 20, this.canvas.height - 20);
+        ctx.globalAlpha = 0.08; // Even more subtle for background
+        ctx.lineWidth = 1;
+        for(let i=0; i<=this.gridUnits; i++) {
+            ctx.beginPath(); ctx.moveTo(i*cs, 0); ctx.lineTo(i*cs, this.canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i*cs); ctx.lineTo(this.canvas.width, i*cs); ctx.stroke();
+        }
+        ctx.globalAlpha = 1.0;
+
+        // Section Labels
+        ctx.fillStyle = '#C5A059';
+        ctx.font = `bold ${cs*0.7}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('NORTH', 12.5*cs, 0.8*cs);
+        ctx.fillText('SOUTH', 12.5*cs, 24.5*cs);
+        ctx.save();
+        ctx.translate(0.8*cs, 12.5*cs); ctx.rotate(-Math.PI/2); ctx.fillText('WEST', 0, 0);
+        ctx.restore();
+        ctx.save();
+        ctx.translate(24.2*cs, 12.5*cs); ctx.rotate(Math.PI/2); ctx.fillText('EAST', 0, 0);
+        ctx.restore();
+        ctx.fillText('ROOF', 12.5*cs, 9.5*cs);
+
+        const H = this.game.H;
+        
+        // Draw all faces with distinct backgrounds
+        const drawFace = (face) => {
+            // Draw face outline
+            ctx.strokeStyle = '#332a18'; // Very dark gold/bronze
+            ctx.lineWidth = 1;
+            
+            let minX = 100, minY = 100, maxX = 0, maxY = 0;
+            const cellsToDraw = [];
+
+            if (face === 'roof') {
+                for (let u = 0; u < 5; u++) {
+                    for (let v = 0; v < 5; v++) cellsToDraw.push({u, v, w: H});
+                }
+            } else {
+                for (let w = 0; w <= H; w++) {
+                    for (let i = 0; i < 5; i++) {
+                        let u = i, v = (face === 'north' ? 0 : 4);
+                        if (face === 'west' || face === 'east') { u = (face === 'west' ? 0 : 4); v = i; }
+                        cellsToDraw.push({u, v, w});
+                    }
+                }
+            }
+
+            cellsToDraw.forEach(c => {
+                const pos = this.getCanvasPos(c.u, c.v, c.w, face);
+                if (pos) {
+                    minX = Math.min(minX, pos.x); minY = Math.min(minY, pos.y);
+                    maxX = Math.max(maxX, pos.x); maxY = Math.max(maxY, pos.y);
+                    this.drawCell(c.u, c.v, c.w, face);
+                }
+            });
+
+            // Draw face border
+            ctx.strokeRect(minX*cs, minY*cs, (maxX-minX+1)*cs, (maxY-minY+1)*cs);
+        };
+
+        ['roof', 'north', 'south', 'west', 'east'].forEach(drawFace);
+    }
+
+    drawCell(u, v, w, face) {
+        const ctx = this.ctx;
+        const cs = this.cellSize;
+        const pos = this.getCanvasPos(u, v, w, face);
+        if (!pos) return;
+
+        const cells = this.game.get2DFrom3D(u, v, w);
+        if (cells.length === 0) return;
+        const cell = cells[0];
+        
+        const gameColor = this.game.grid[cell.x][cell.y];
+        const isValid = this.game.validMoves.some(m => m.x === cell.x && m.y === cell.y);
+        const isLastMove = this.game.lastMove && this.game.lastMove.x === cell.x && this.game.lastMove.y === cell.y;
+        
+        // Sync hover across all matching windows
+        let isHovered = false;
+        if (this.hoveredState) {
+            const hCells = this.game.get2DFrom3D(this.hoveredState.u, this.hoveredState.v, this.hoveredState.w);
+            const myCells = this.game.get2DFrom3D(u, v, w);
+            if (hCells.some(hc => myCells.some(mc => mc.x === hc.x && mc.y === hc.y))) isHovered = true;
+        }
+
+        const px = pos.x * cs, py = pos.y * cs;
+
+        // Base Structure - Significantly lightened for better differentiation from BG
+        const isSolid = w < this.game.wStart;
+        ctx.fillStyle = isSolid ? '#0c0c0c' : '#222222';
+        ctx.fillRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
+        
+        // Internal Grid Lines
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
+
+        if (gameColor) {
+            ctx.fillStyle = this.colors[gameColor];
+            ctx.shadowBlur = 15; ctx.shadowColor = this.colors[gameColor];
+            ctx.fillRect(px + 2, py + 2, cs - 4, cs - 4);
+            ctx.shadowBlur = 0;
+        } else if (isValid) {
+            if (isHovered) {
+                // Stronger "Effect" Preview
+                ctx.fillStyle = this.colors[this.game.turn];
+                ctx.shadowBlur = 12; ctx.shadowColor = this.colors[this.game.turn];
+                ctx.fillRect(px + 2, py + 2, cs - 4, cs - 4);
+                ctx.shadowBlur = 0;
+            } else {
+                ctx.fillStyle = this.colors.highlight;
+                ctx.fillRect(px + 4, py + 4, cs - 8, cs - 8);
+            }
+        }
+
+        if (isLastMove) {
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(px + 1.5, py + 1.5, cs - 3, cs - 3);
+        }
     }
 
     drawStitchLines(ctx, c) {
@@ -477,7 +638,7 @@ class View3D {
         this.camera.position.set(22, 28, 22);
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
         this.renderer.setPixelRatio(window.devicePixelRatio > 1.5 ? 2 : window.devicePixelRatio); // Cap pixel ratio
-        this.renderer.toneMapping = THREE.LinearToneMapping;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.container.appendChild(this.renderer.domElement);
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
@@ -489,26 +650,26 @@ class View3D {
 
         this.composer = new THREE.EffectComposer(this.renderer);
         this.composer.addPass(new THREE.RenderPass(this.scene, this.camera));
-        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-        bloomPass.threshold = 0.2;
-        bloomPass.strength = 1.5;
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.4, 0.85);
+        bloomPass.threshold = 0.35; // Increased threshold to prevent white spread
+        bloomPass.strength = 0.8;
         bloomPass.radius = 0.6;
         this.composer.addPass(bloomPass);
 
-        this.scene.add(new THREE.AmbientLight(0x88aacc, 0.55)); // Brighter moonlight ambient
+        this.scene.add(new THREE.AmbientLight(0x88aacc, 0.2)); // Reduced for more contrast
 
         // Add a warm city glow from below for environmental scale
-        const hemi = new THREE.HemisphereLight(0x88aacc, 0x443322, 0.8);
+        const hemi = new THREE.HemisphereLight(0x88aacc, 0x443322, 0.3); // Reduced for more contrast
         this.scene.add(hemi);
 
-        const moon = new THREE.DirectionalLight(0x7799bb, 1.6);
+        const moon = new THREE.DirectionalLight(0x7799bb, 1.0); // Reduced from 1.6
         moon.position.set(30, 40, -20);
         const moonTarget = new THREE.Object3D();
         this.scene.add(moonTarget);
         moon.target = moonTarget;
         this.scene.add(moon);
 
-        const fillLight = new THREE.DirectionalLight(0x444466, 1.2);
+        const fillLight = new THREE.DirectionalLight(0x444466, 0.8); // Reduced from 1.2
         fillLight.position.set(-30, 20, 30);
         const fillTarget = new THREE.Object3D();
         fillTarget.position.set(0, 5, 0);
@@ -843,8 +1004,11 @@ class View3D {
         interior.position.z = -0.01; win.add(interior);
     }
     addWindows(u, v, w, parent) {
+        const isRoof = w === this.game.H;
         const mat = () => new THREE.MeshPhongMaterial({
-            color: 0x111111, shininess: 80, specular: 0x444444,
+            color: 0x111111, 
+            shininess: isRoof ? 10 : 40, // Much lower shininess on roof
+            specular: isRoof ? 0x111111 : 0x222222, // Reduced specular on roof
             emissive: 0x000000, emissiveIntensity: 0
         });
         const key = `${u},${v},${w}`;
@@ -916,9 +1080,9 @@ class View3D {
             this.beacon.material.color.setHex(0x111111);
             this.beaconLight.intensity = 0;
         } else if (diff > 1) {
-            this.beacon.material.color.setHex(0xFFFFFF);
-            this.beaconLight.color.setHex(0xFFFFFF);
-            this.beaconLight.intensity = 1.0; // Minimal glow as requested
+            this.beacon.material.color.setHex(0xFFB000);
+            this.beaconLight.color.setHex(0xFFB000);
+            this.beaconLight.intensity = 0.8; // Slightly more presence
         } else {
             this.beacon.material.color.setHex(0xFF0000);
             this.beaconLight.color.setHex(0xFF0000);
@@ -932,14 +1096,14 @@ class View3D {
             const isValid = this.game.validMoves.some(m => cells.some(c => c.x === m.x && c.y === m.y));
             const isHovered = this.hoveredKey === key;
 
-            if (cells.some(c => this.game.grid[c.x][c.y] === 'white')) { color = 0xFFFFFF; glow = true; intensity = 2.5; }
-            else if (cells.some(c => this.game.grid[c.x][c.y] === 'red')) { color = 0xFF0000; glow = true; intensity = 2.5; }
-            else if (cells.some(c => this.game.grid[c.x][c.y] === 'blue')) { color = 0x0077FF; glow = true; intensity = 2.5; }
-            else if (cells.some(c => this.game.grid[c.x][c.y] === 'green')) { color = 0x00FF00; glow = true; intensity = 2.5; }
+            if (cells.some(c => this.game.grid[c.x][c.y] === 'white')) { color = 0xFFB000; glow = true; intensity = 2.5; }
+            else if (cells.some(c => this.game.grid[c.x][c.y] === 'red')) { color = 0xFF0000; glow = true; intensity = 1.6; }
+            else if (cells.some(c => this.game.grid[c.x][c.y] === 'blue')) { color = 0x0000FF; glow = true; intensity = 1.0; }
+            else if (cells.some(c => this.game.grid[c.x][c.y] === 'green')) { color = 0x00FF00; glow = true; intensity = 0.8; }
             else if (isValid) {
-                const hoverColor = this.game.turn === 'white' ? 0xFFFFFF : (this.game.turn === 'red' ? 0xFF7777 : (this.game.turn === 'blue' ? 0x77CCFF : 0x77FF77));
-                color = isHovered ? hoverColor : 0x8A6D3B; // Darker gold/bronze
-                intensity = isHovered ? 2.0 : 0.3; // Much lower idle glow
+                const hoverColor = this.game.turn === 'white' ? 0xFFB000 : (this.game.turn === 'red' ? 0xFF0000 : (this.game.turn === 'blue' ? 0x0000FF : 0x00FF00));
+                color = isHovered ? hoverColor : 0x444444; // Darker white/grey
+                intensity = isHovered ? 2.5 : 0.2; // Higher hover intensity
                 glow = true;
             }
 
@@ -947,7 +1111,7 @@ class View3D {
             const isLastMove = this.game.lastMove && cells.some(c => c.x === this.game.lastMove.x && c.y === this.game.lastMove.y);
             if (isLastMove) {
                 glow = true;
-                intensity = 5.0; // Extra glow for last move
+                intensity = 2.5; // Capped glow for last move
             }
 
             meshes.forEach(m => {
@@ -1081,29 +1245,41 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    document.getElementById('canvas2d').onclick = (e) => {
-        const rect = e.target.getBoundingClientRect();
-        const VGS = v2d.viewGridSize;
-        const vx = Math.floor(((e.clientX - rect.left) / rect.width) * VGS);
-        const vy = Math.floor(((e.clientY - rect.top) / rect.height) * VGS);
-
-        // Anti-mapping: Find which u,v,w this vx,vy corresponds to
-        for (let w = game.wStart; w <= game.H; w++) {
-            for (let u = 0; u < 5; u++) {
-                for (let v = 0; v < 5; v++) {
-                    const pos = v2d.getCanvasPos(u, v, w);
-                    if (pos.x === vx && pos.y === vy) {
-                        const cells = game.get2DFrom3D(u, v, w);
-                        if (cells.length > 0) game.makeMove(cells[0].x, cells[0].y);
-                        return;
-                    }
-                }
-            }
-        }
-    };
+    // 2D Canvas interaction is now handled within the View2D class
 
     document.getElementById('reset-btn').onclick = () => game.reset();
     document.getElementById('rules-btn').onclick = () => document.getElementById('rules-modal').style.display = 'flex';
+
+
+    // Click outside to close menus
+    document.addEventListener('pointerdown', (e) => {
+        // Dropdown menus
+        const menus = [
+            { btn: modeBtn, menu: modeMenu },
+            { btn: aiBtn, menu: aiMenu },
+            { btn: viewBtn, menu: viewMenu }
+        ];
+
+        menus.forEach(({ btn, menu }) => {
+            if (menu.classList.contains('visible')) {
+                if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                    menu.classList.remove('visible');
+                }
+            }
+        });
+
+        // Main Menu / HUD
+        const trigger = document.getElementById('menu-trigger');
+        const header = document.getElementById('main-header');
+        const hud = document.getElementById('hud');
+        if (header.classList.contains('visible')) {
+            if (!header.contains(e.target) && !trigger.contains(e.target) && !hud.contains(e.target)) {
+                trigger.classList.remove('active');
+                header.classList.remove('visible');
+                hud.classList.remove('visible');
+            }
+        }
+    });
 
     window.onresize = () => { if (v2d) v2d.resize(); if (v3d) v3d.resize(); };
     setTimeout(() => { v2d.resize(); v3d.resize(); game.onStateChange(); }, 100);
