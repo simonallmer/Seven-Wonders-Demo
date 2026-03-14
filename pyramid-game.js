@@ -55,6 +55,7 @@ function initializeUI() {
     const rulesModal = document.getElementById('rules-modal');
     const playAgainBtn = document.getElementById('play-again-btn');
     const viewToggleBtn = document.getElementById('view-toggle-btn');
+    const closeFromMenuBtn = document.getElementById('close-from-menu-btn');
 
     menuToggle.addEventListener('click', () => {
         isMenuOpen = !isMenuOpen;
@@ -69,6 +70,13 @@ function initializeUI() {
             menuToggle.classList.remove('active');
             sideMenu.classList.remove('open');
         }
+    });
+
+    closeFromMenuBtn.addEventListener('click', () => {
+        isMenuOpen = false;
+        menuToggle.classList.remove('active');
+        sideMenu.classList.remove('open');
+        rulesModal.classList.add('hidden');
     });
 
     viewToggleBtn.addEventListener('click', () => {
