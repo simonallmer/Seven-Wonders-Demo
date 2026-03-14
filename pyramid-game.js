@@ -1,21 +1,22 @@
 // PYRAMID GAME - Seven Wonders Series
 // Game Design: Simon Allmer
+// Fullscreen 3D Implementation
 
 // ============================================
 // CONSTANTS & PYRAMID STRUCTURE
 // ============================================
 
 const LEVELS = [
-    { level: 0, size: 7, playableRim: true },  // Level 1: 7x7, only outer rim playable
-    { level: 1, size: 5, playableRim: true },  // Level 2: 5x5, only outer rim playable
-    { level: 2, size: 3, playableRim: true },  // Level 3: 3x3, only outer rim playable
-    { level: 3, size: 1, playableRim: false }  // Level 4: 1x1, victory field
+    { level: 0, size: 7, playableRim: true },
+    { level: 1, size: 5, playableRim: true },
+    { level: 2, size: 3, playableRim: true },
+    { level: 3, size: 1, playableRim: false }
 ];
 
 // ============================================
 // GAME STATE
 // ============================================
-let pyramid = []; // 4 levels, each is a 2D array
+let pyramid = [];
 let currentPlayer = 'white';
 let selectedStone = null;
 let validMoves = [];
@@ -23,29 +24,165 @@ let gameState = 'SELECT_STONE';
 let lastPush = null;
 let isVsComputer = false;
 
-// Track AI behavior to prevent loops
-let aiLastMovedStone = null; // {level, row, col}
+let aiLastMovedStone = null;
 let aiConsecutiveMoveCount = 0;
 
-// ============================================
-// DOM ELEMENTS
-// ============================================
-const statusElement = document.getElementById('game-status');
-const playerColorElement = document.getElementById('current-player-color');
-const whiteCountElement = document.getElementById('white-count');
-const blackCountElement = document.getElementById('black-count');
-const topCountElement = document.getElementById('top-count');
-const messageBox = document.getElementById('message-box');
-const resetButton = document.getElementById('reset-button');
-const opponentButton = document.getElementById('opponent-btn');
-const cancelButton = document.getElementById('cancel-button');
-const gameOverModal = document.getElementById('game-over-modal');
-const modalTitle = document.getElementById('modal-title');
-const modalText = document.getElementById('modal-text');
+let view3D = null;
+let view2D = null;
+let is3DMode = true;
+let animatedStones = new Map();
+let isMenuOpen = false;
 
 // ============================================
 // INITIALIZATION
 // ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializePyramid();
+    initializeUI();
+    initializeViews();
+});
+
+function initializeUI() {
+    const menuToggle = document.getElementById('menu-toggle');
+    const sideMenu = document.getElementById('side-menu');
+    const newGameBtn = document.getElementById('new-game-btn');
+    const opponentBtn = document.getElementById('opponent-btn');
+    const rulesBtn = document.getElementById('rules-btn');
+    const closeRulesBtn = document.getElementById('close-rules-btn');
+    const rulesOverlay = document.getElementById('rules-overlay');
+    const rulesModal = document.getElementById('rules-modal');
+    const playAgainBtn = document.getElementById('play-again-btn');
+    const viewToggleBtn = document.getElementById('view-toggle-btn');
+
+    menuToggle.addEventListener('click', () => {
+        isMenuOpen = !isMenuOpen;
+        menuToggle.classList.toggle('active', isMenuOpen);
+        sideMenu.classList.toggle('open', isMenuOpen);
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (isMenuOpen && !sideMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+            isMenuOpen = false;
+            menuToggle.classList.remove('active');
+            sideMenu.classList.remove('open');
+        }
+    });
+
+    viewToggleBtn.addEventListener('click', () => {
+        showMessage('2D View coming soon!');
+    });
+
+    newGameBtn.addEventListener('click', () => {
+        initializePyramid();
+        if (view3D) view3D.updateStones();
+        if (view2D) view2D.draw();
+    });
+
+    opponentBtn.addEventListener('click', () => {
+        isVsComputer = !isVsComputer;
+        opponentBtn.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
+        if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
+            setTimeout(makeAIMove, 600);
+        }
+    });
+
+    rulesBtn.addEventListener('click', () => {
+        rulesModal.classList.remove('hidden');
+    });
+
+    closeRulesBtn.addEventListener('click', () => {
+        rulesModal.classList.add('hidden');
+    });
+
+    rulesOverlay.addEventListener('click', () => {
+        rulesModal.classList.add('hidden');
+    });
+
+    playAgainBtn.addEventListener('click', () => {
+        document.getElementById('game-over-overlay').classList.add('hidden');
+        initializePyramid();
+        if (view3D) view3D.updateStones();
+        if (view2D) view2D.draw();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') {
+            if (!rulesModal.classList.contains('hidden')) {
+                rulesModal.classList.add('hidden');
+            } else if (isMenuOpen) {
+                isMenuOpen = false;
+                menuToggle.classList.remove('active');
+                sideMenu.classList.remove('open');
+            }
+        }
+    });
+
+    updateUI();
+}
+
+function updateViewMode() {
+    // For now, 3D only - show "Coming Soon" message if they try to switch
+    const viewToggleBtn = document.getElementById('view-toggle-btn');
+    const canvas3d = document.getElementById('canvas-3d');
+    const canvas2d = document.getElementById('canvas-2d');
+    
+    // Always use 3D mode for now
+    is3DMode = true;
+    viewToggleBtn.textContent = 'View: 3D';
+    
+    canvas3d.classList.remove('hidden');
+    canvas2d.classList.add('hidden');
+    if (view3D) {
+        view3D.resize();
+        view3D.running = true;
+        view3D.animate();
+    }
+}
+
+function initializeViews() {
+    const container3d = document.getElementById('canvas-3d');
+    const container2d = document.getElementById('canvas-2d');
+    
+    console.log('Initializing views...');
+    console.log('THREE defined:', typeof THREE !== 'undefined');
+    console.log('OrbitControls defined:', typeof THREE !== 'undefined' && typeof THREE.OrbitControls !== 'undefined');
+    
+    // Initialize 2D first as fallback
+    view2D = new PyramidView2D(container2d, {
+        getPyramid: () => pyramid,
+        getCurrentPlayer: () => currentPlayer,
+        getSelectedStone: () => selectedStone,
+        getValidMoves: () => validMoves,
+        getGameState: () => gameState,
+        onCellClick: handleCellClick
+    });
+    
+    // Try to initialize 3D
+    if (typeof THREE !== 'undefined') {
+        try {
+            view3D = new PyramidView3D(container3d, {
+                getPyramid: () => pyramid,
+                getCurrentPlayer: () => currentPlayer,
+                getSelectedStone: () => selectedStone,
+                getValidMoves: () => validMoves,
+                getGameState: () => gameState,
+                onCellClick: handleCellClick
+            });
+            console.log('3D view initialized successfully');
+        } catch (e) {
+            console.error('Failed to initialize 3D view:', e);
+            // Fall back to 2D
+            is3DMode = false;
+        }
+    } else {
+        console.warn('Three.js not loaded, using 2D only');
+        is3DMode = false;
+    }
+    
+    updateViewMode();
+}
 
 function initializePyramid() {
     pyramid = [];
@@ -55,24 +192,19 @@ function initializePyramid() {
             Array(size).fill(0).map(() => ({ piece: null, playable: false, victory: false }))
         );
 
-        // Mark playable cells (outer rim only for levels 0-2, all for level 3)
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 if (level === 3) {
-                    // Top level (1x1): regular playable field
                     grid[r][c].playable = true;
                 } else if (level === 2) {
-                    // Level 3 (3x3): outer rim is playable, 4 corner fields are victory fields
                     if (r === 0 || r === size - 1 || c === 0 || c === size - 1) {
                         grid[r][c].playable = true;
-                        // Mark the 4 corner fields as victory fields
                         if ((r === 0 && c === 0) || (r === 0 && c === 2) ||
                             (r === 2 && c === 0) || (r === 2 && c === 2)) {
                             grid[r][c].victory = true;
                         }
                     }
                 } else {
-                    // Levels 1 and 2: only outer rim is playable
                     if (r === 0 || r === size - 1 || c === 0 || c === size - 1) {
                         grid[r][c].playable = true;
                     }
@@ -83,7 +215,6 @@ function initializePyramid() {
         pyramid[level] = grid;
     });
 
-    // Place starting stones
     placeStartingStones();
 
     currentPlayer = 'white';
@@ -92,190 +223,123 @@ function initializePyramid() {
     gameState = 'SELECT_STONE';
     lastPush = null;
 
-    drawPyramid();
-    updateStatus();
-    updateCounts();
-    updateCounts();
-    hideMessage();
-    hideGameOverModal();
-}
-
-function showGameOverModal(title, text) {
-    modalTitle.textContent = title;
-    modalText.textContent = text;
-    gameOverModal.classList.remove('hidden');
-    // Trigger reflow to enable transition
-    void gameOverModal.offsetWidth;
-    gameOverModal.classList.add('visible');
-}
-
-function hideGameOverModal() {
-    gameOverModal.classList.remove('visible');
-    setTimeout(() => {
-        gameOverModal.classList.add('hidden');
-    }, 300);
+    updateUI();
+    if (view3D) view3D.updateStones();
+    if (view2D) view2D.draw();
 }
 
 function placeStartingStones() {
-    // White: bottom row of level 0 (row 6, cols 0-6)
     for (let c = 0; c < 7; c++) {
         pyramid[0][6][c].piece = 'white';
     }
-
-    // Black: top row of level 0 (row 0, cols 0-6)
     for (let c = 0; c < 7; c++) {
         pyramid[0][0][c].piece = 'black';
     }
 }
 
 // ============================================
-// RENDERING
+// UI UPDATES
 // ============================================
 
-function drawPyramid() {
-    const pyramidBoard = document.getElementById('pyramid-board');
-    pyramidBoard.innerHTML = '';
+function updateUI() {
+    const playerIndicator = document.getElementById('player-indicator');
+    const playerName = document.getElementById('player-name');
+    const whiteCount = document.getElementById('white-count');
+    const blackCount = document.getElementById('black-count');
+    const topCount = document.getElementById('top-count');
 
-    LEVELS.forEach(({ level, size }) => {
-        const levelElement = document.createElement('div');
-        levelElement.className = 'pyramid-level';
-        levelElement.dataset.level = level;
-        levelElement.dataset.size = size;
-
-        const grid = pyramid[level];
-
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.dataset.level = level;
-                cell.dataset.row = r;
-                cell.dataset.col = c;
-
-                const cellData = grid[r][c];
-
-                if (!cellData.playable) {
-                    cell.classList.add('inactive');
-                } else {
-                    if (cellData.victory) {
-                        cell.classList.add('victory-field');
-                    }
-
-                    if (validMoves.some(m => m.level === level && m.row === r && m.col === c)) {
-                        cell.classList.add('valid-move');
-                    }
-
-                    if (cellData.piece) {
-                        const stone = document.createElement('div');
-                        stone.classList.add('stone', cellData.piece);
-
-                        if (selectedStone && selectedStone.level === level &&
-                            selectedStone.row === r && selectedStone.col === c) {
-                            stone.classList.add('selected');
-                        }
-
-                        cell.appendChild(stone);
-                    }
-
-                    cell.addEventListener('click', () => handleCellClick(level, r, c));
-                }
-
-                levelElement.appendChild(cell);
-            }
-        }
-
-        pyramidBoard.appendChild(levelElement);
-    });
-}
-
-function updateStatus(message = null) {
-    playerColorElement.style.backgroundColor = currentPlayer === 'white' ? '#ffffff' : '#1a1a1a';
-    playerColorElement.style.borderColor = currentPlayer === 'white' ? '#1a1a1a' : '#ffffff';
-
-    if (gameState === 'GAME_OVER') return;
-
-    if (message) {
-        statusElement.textContent = message;
-    } else {
-        const playerName = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
-        if (gameState === 'SELECT_STONE') {
-            statusElement.textContent = `${playerName} to move. Select a stone to move.`;
-        } else if (gameState === 'SELECT_MOVE') {
-            statusElement.textContent = `${playerName} selected. Choose where to move (green highlights).`;
+    if (playerIndicator && playerName) {
+        playerIndicator.className = 'player-indicator ' + currentPlayer;
+        if (gameState !== 'GAME_OVER') {
+            playerName.textContent = currentPlayer === 'white' ? "White's Turn" : "Black's Turn";
         }
     }
-}
 
-function updateCounts() {
-    let whiteCount = 0, blackCount = 0, victoryStones = 0;
-
+    let white = 0, black = 0, victory = 0;
     pyramid.forEach((grid, level) => {
         grid.forEach(row => {
             row.forEach(cell => {
                 if (cell.piece === 'white') {
-                    whiteCount++;
-                    if (cell.victory) victoryStones++;
+                    white++;
+                    if (cell.victory) victory++;
                 }
                 if (cell.piece === 'black') {
-                    blackCount++;
-                    if (cell.victory) victoryStones++;
+                    black++;
+                    if (cell.victory) victory++;
                 }
             });
         });
     });
 
-    whiteCountElement.textContent = whiteCount;
-    blackCountElement.textContent = blackCount;
-    topCountElement.textContent = `${victoryStones}/4`;
+    if (whiteCount) whiteCount.textContent = white;
+    if (blackCount) blackCount.textContent = black;
+    if (topCount) topCount.textContent = victory + '/4';
 
-    // Check win/draw conditions
-    // Check win/draw conditions
+    checkWinConditions(white, black, victory);
+}
 
-    // Find which player has stones on victory fields
-    let whiteVictory = 0, blackVictory = 0;
-    pyramid[2].forEach(row => {
-        row.forEach(cell => {
-            if (cell.victory && cell.piece === 'white') whiteVictory++;
-            if (cell.victory && cell.piece === 'black') blackVictory++;
-        });
+function checkWinConditions(whiteCount, blackCount, victoryStones) {
+    // Check victory fields - need all 4 to be occupied by same color
+    let whiteVictory = 0;
+    let blackVictory = 0;
+    
+    // Victory fields are on level 2 (3x3), at corners: (0,0), (0,2), (2,0), (2,2)
+    const victoryPositions = [
+        { level: 2, row: 0, col: 0 },
+        { level: 2, row: 0, col: 2 },
+        { level: 2, row: 2, col: 0 },
+        { level: 2, row: 2, col: 2 }
+    ];
+    
+    victoryPositions.forEach(pos => {
+        const piece = pyramid[pos.level]?.[pos.row]?.[pos.col]?.piece;
+        if (piece === 'white') whiteVictory++;
+        if (piece === 'black') blackVictory++;
     });
-
-    if (whiteVictory >= 4) {
+    
+    // Win if all 4 victory fields are owned by same color
+    if (whiteVictory === 4) {
         gameState = 'GAME_OVER';
-        updateStatus(`Game Over! White wins!`);
-        showGameOverModal('White Wins!', 'White wins by occupying all 4 victory fields!');
-    } else if (blackVictory >= 4) {
+        showGameOver('White Wins!', 'White controls all victory fields!');
+        return;
+    }
+    if (blackVictory === 4) {
         gameState = 'GAME_OVER';
-        updateStatus(`Game Over! Black wins!`);
-        showGameOverModal('Black Wins!', 'Black wins by occupying all 4 victory fields!');
-    } else if (whiteCount < 4 && blackCount < 4) {
+        showGameOver('Black Wins!', 'Black controls all victory fields!');
+        return;
+    }
+    
+    // Otherwise check stone counts
+    if (whiteCount < 4 && blackCount < 4) {
         gameState = 'GAME_OVER';
-        updateStatus('Game Over! Draw!');
-        showGameOverModal('Draw!', 'Both players have fewer than 4 stones.');
+        showGameOver('Draw!', 'Both players have fewer than 4 stones.');
     } else if (whiteCount < 4) {
         gameState = 'GAME_OVER';
-        updateStatus('Game Over! Black wins!');
-        showGameOverModal('Black Wins!', 'Black wins! White has fewer than 4 stones.');
+        showGameOver('Black Wins!', 'White has fewer than 4 stones.');
     } else if (blackCount < 4) {
         gameState = 'GAME_OVER';
-        updateStatus('Game Over! White wins!');
-        showGameOverModal('White Wins!', 'White wins! Black has fewer than 4 stones.');
+        showGameOver('White Wins!', 'Black has fewer than 4 stones.');
     }
 }
 
+function showGameOver(title, text) {
+    const overlay = document.getElementById('game-over-overlay');
+    const titleEl = document.getElementById('game-over-title');
+    const textEl = document.getElementById('game-over-text');
+    
+    titleEl.textContent = title;
+    textEl.textContent = text;
+    overlay.classList.remove('hidden');
+}
+
 function showMessage(text) {
-    messageBox.textContent = text;
-    messageBox.classList.remove('hidden');
+    const msgBox = document.getElementById('game-message');
+    msgBox.textContent = text;
+    msgBox.classList.remove('hidden');
     clearTimeout(window.messageTimeout);
-    window.messageTimeout = setTimeout(hideMessage, 4000);
-}
-
-function hideMessage() {
-    messageBox.classList.add('hidden');
-}
-
-function updateUI() {
-    cancelButton.classList.toggle('hidden', !selectedStone);
+    window.messageTimeout = setTimeout(() => {
+        msgBox.classList.add('hidden');
+    }, 3500);
 }
 
 // ============================================
@@ -299,52 +363,39 @@ function calculateRunMoves(level, row, col) {
         let c = col;
 
         while (true) {
-            // Calculate next position in current direction
             let nextR = r + dr;
             let nextC = c + dc;
             let nextLevel = currentLevel;
 
-            // Check if next position is off the current level
             if (!isPlayable(currentLevel, nextR, nextC)) {
-                // Try to step down
                 if (currentLevel > 0) {
                     nextLevel = currentLevel - 1;
-                    // Let's use this robust mapping.
                     const currentOffset = (7 - LEVELS[currentLevel].size) / 2;
                     const nextOffset = (7 - LEVELS[nextLevel].size) / 2;
-
                     const globalR = r + currentOffset;
                     const globalC = c + currentOffset;
                     const targetGlobalR = globalR + dr;
                     const targetGlobalC = globalC + dc;
-
                     nextR = targetGlobalR - nextOffset;
                     nextC = targetGlobalC - nextOffset;
                 } else {
-                    // Cannot go lower than level 0
                     break;
                 }
             }
 
-            // Check if the new position is valid and playable
             if (isPlayable(nextLevel, nextR, nextC)) {
                 if (pyramid[nextLevel][nextR][nextC].piece) {
-                    // Smash!
-                    // Only allow smash if we dropped a level. If same level, it's a blocker.
                     if (nextLevel < currentLevel) {
                         moves.push({ level: nextLevel, row: nextR, col: nextC, type: 'smash' });
                     }
-                    break; // Stop after smash or block
+                    break;
                 } else {
-                    // Empty space, continue run
                     moves.push({ level: nextLevel, row: nextR, col: nextC, type: 'run' });
-                    // Update current position for next iteration
                     currentLevel = nextLevel;
                     r = nextR;
                     c = nextC;
                 }
             } else {
-                // Not playable (e.g. corner of level 2 which is not playable, or off board of level 0)
                 break;
             }
         }
@@ -355,26 +406,21 @@ function calculateRunMoves(level, row, col) {
 
 function calculateJumpMoves(level, row, col) {
     const moves = [];
-
-    if (level >= 3) return moves; // Can't jump from top level
+    if (level >= 3) return moves;
 
     const upperLevel = level + 1;
     const upperSize = LEVELS[upperLevel].size;
     const currentSize = LEVELS[level].size;
     const offset = (currentSize - upperSize) / 2;
 
-    // Check all 4 adjacent directions on the same level
     const directions = [{ dr: -1, dc: 0 }, { dr: 1, dc: 0 }, { dr: 0, dc: -1 }, { dr: 0, dc: 1 }];
 
     directions.forEach(({ dr, dc }) => {
         const adjR = row + dr;
         const adjC = col + dc;
-
-        // Calculate corresponding position on upper level
         const upperR = adjR - offset;
         const upperC = adjC - offset;
 
-        // Check if the adjacent position exists on the upper level and is empty
         if (isPlayable(upperLevel, upperR, upperC) && !pyramid[upperLevel][upperR][upperC].piece) {
             moves.push({ level: upperLevel, row: upperR, col: upperC, type: 'jump' });
         }
@@ -391,25 +437,17 @@ function calculatePushMoves(level, row, col) {
         const adjR = row + dr;
         const adjC = col + dc;
 
-        // Check if there is a stone to push at (adjR, adjC)
         if (isPlayable(level, adjR, adjC) && pyramid[level][adjR][adjC].piece) {
             const pushR = adjR + dr;
             const pushC = adjC + dc;
 
-            // 1. Try to push on the SAME level
             if (isPlayable(level, pushR, pushC)) {
                 if (!pyramid[level][pushR][pushC].piece) {
-                    // Prevent pushing back:
-                    // If I am the stone that was just pushed (lastPush.pushed)
-                    // AND I am trying to push the stone that pushed me (lastPush.pusher)
-                    // THEN forbid.
                     let isPushBack = false;
                     if (lastPush) {
                         const amIThePushedOne = (level === lastPush.pushed.level && row === lastPush.pushed.row && col === lastPush.pushed.col);
                         const isTargetThePusher = (level === lastPush.pusher.level && adjR === lastPush.pusher.row && adjC === lastPush.pusher.col);
-                        if (amIThePushedOne && isTargetThePusher) {
-                            isPushBack = true;
-                        }
+                        if (amIThePushedOne && isTargetThePusher) isPushBack = true;
                     }
 
                     if (!isPushBack) {
@@ -419,17 +457,13 @@ function calculatePushMoves(level, row, col) {
                         });
                     }
                 }
-            }
-            // 2. If not playable on same level, check if it's a push to a LOWER level (or fall off Level 0)
-            else {
+            } else {
                 if (level > 0) {
-                    // Push down to lower level
                     const lowerLevel = level - 1;
                     const offset = (LEVELS[lowerLevel].size - LEVELS[level].size) / 2;
                     const lowerPushR = pushR + offset;
                     const lowerPushC = pushC + offset;
 
-                    // Only allow push if the target on lower level is playable
                     if (isPlayable(lowerLevel, lowerPushR, lowerPushC)) {
                         moves.push({
                             level, row: adjR, col: adjC, type: 'push',
@@ -437,7 +471,6 @@ function calculatePushMoves(level, row, col) {
                         });
                     }
                 } else {
-                    // Level 0: Push off the board (FALL)
                     moves.push({
                         level, row: adjR, col: adjC, type: 'push-fall',
                         pushTo: null
@@ -451,10 +484,7 @@ function calculatePushMoves(level, row, col) {
 }
 
 function handleCellClick(level, row, col) {
-    if (gameState === 'GAME_OVER') {
-        showMessage("Game Over! Click New Game to play again.");
-        return;
-    }
+    if (gameState === 'GAME_OVER') return;
 
     const cellData = pyramid[level][row][col];
 
@@ -473,17 +503,26 @@ function handleCellClick(level, row, col) {
             }
 
             gameState = 'SELECT_MOVE';
-            drawPyramid();
-            updateStatus();
-            updateUI();
+            if (view3D) view3D.updateIndicators();
+            if (view2D) view2D.draw();
         }
     } else if (gameState === 'SELECT_MOVE') {
+        // Check if clicking on the same selected stone - deselect
+        if (selectedStone && selectedStone.level === level && selectedStone.row === row && selectedStone.col === col) {
+            selectedStone = null;
+            validMoves = [];
+            gameState = 'SELECT_STONE';
+            if (view3D) view3D.updateIndicators();
+            if (view2D) view2D.draw();
+            return;
+        }
+
         const move = validMoves.find(m => m.level === level && m.row === row && m.col === col);
 
         if (move) {
             executeMove(move);
         } else if (cellData.piece === currentPlayer) {
-            // Reselect
+            // Clicking on own stone - switch selection
             selectedStone = { level, row, col };
             const runMoves = calculateRunMoves(level, row, col);
             const jumpMoves = calculateJumpMoves(level, row, col);
@@ -493,19 +532,28 @@ function handleCellClick(level, row, col) {
             if (validMoves.length === 0) {
                 showMessage("This stone has no valid moves.");
                 selectedStone = null;
+                validMoves = [];
                 gameState = 'SELECT_STONE';
             }
 
-            drawPyramid();
-            updateStatus();
+            if (view3D) view3D.updateIndicators();
+            if (view2D) view2D.draw();
+        } else {
+            // Clicking elsewhere - deselect
+            selectedStone = null;
+            validMoves = [];
+            gameState = 'SELECT_STONE';
+            if (view3D) view3D.updateIndicators();
+            if (view2D) view2D.draw();
         }
     }
 }
 
 function executeMove(move) {
     const fromPiece = pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece;
+    const fromKey = `${selectedStone.level},${selectedStone.row},${selectedStone.col}`;
+    const toKey = `${move.level},${move.row},${move.col}`;
 
-    // Track AI consecutive moves with the same stone
     if (currentPlayer === 'black') {
         if (aiLastMovedStone &&
             aiLastMovedStone.level === selectedStone.level &&
@@ -515,14 +563,85 @@ function executeMove(move) {
         } else {
             aiConsecutiveMoveCount = 1;
         }
-        // Update to the NEW position of the stone
         aiLastMovedStone = { level: move.level, row: move.row, col: move.col };
     } else {
-        // Reset if human moves
         aiLastMovedStone = null;
         aiConsecutiveMoveCount = 0;
     }
 
+    // Animate the move in 3D
+    if (is3DMode && view3D && animatedStones.size === 0) {
+        const stoneForAnimation = selectedStone;
+        
+        // Handle different move types
+        if (move.type === 'push') {
+            const pushedKey = `${move.level},${move.row},${move.col}`;
+            const pushedMesh = view3D.stoneMeshes.get(pushedKey);
+            
+            if (pushedMesh) {
+                // First animate the pushed stone to its destination (give it time to be seen first)
+                view3D.animateStone(pushedKey, `${move.pushTo.level},${move.pushTo.row},${move.pushTo.col}`, move, () => {
+                    // After pushed stone arrives, wait a tiny bit then animate the main stone
+                    setTimeout(() => {
+                        view3D.animateStone(fromKey, toKey, move, () => {
+                            // Both animations done - now perform the game logic
+                            selectedStone = stoneForAnimation;
+                            performMoveLogic(move, fromPiece);
+                        });
+                    }, 100);
+                });
+            } else {
+                // No pushed mesh found - just do logic
+                performMoveLogic(move, fromPiece);
+            }
+            
+        } else if (move.type === 'smash') {
+            // Smash: animate main stone, then remove smashed stone after
+            view3D.animateStone(fromKey, toKey, move, () => {
+                selectedStone = stoneForAnimation;
+                performMoveLogic(move, fromPiece);
+            });
+            
+            // Also animate/remove the smashed stone
+            const smashedKey = `${move.level},${move.row},${move.col}`;
+            const smashedMesh = view3D.stoneMeshes.get(smashedKey);
+            if (smashedMesh) {
+                setTimeout(() => {
+                    if (smashedMesh.parent) view3D.scene.remove(smashedMesh);
+                    view3D.stoneMeshes.delete(smashedKey);
+                }, 350);
+            }
+            
+        } else if (move.type === 'push-fall') {
+            // Push fall: animate main stone, remove pushed stone
+            view3D.animateStone(fromKey, toKey, move, () => {
+                selectedStone = stoneForAnimation;
+                performMoveLogic(move, fromPiece);
+            });
+            
+            const pushedKey = `${move.level},${move.row},${move.col}`;
+            const pushedMesh = view3D.stoneMeshes.get(pushedKey);
+            if (pushedMesh) {
+                setTimeout(() => {
+                    if (pushedMesh.parent) view3D.scene.remove(pushedMesh);
+                    view3D.stoneMeshes.delete(pushedKey);
+                }, 350);
+            }
+            
+        } else {
+            // Normal move (run/jump) - just animate and do logic
+            view3D.animateStone(fromKey, toKey, move, () => {
+                selectedStone = stoneForAnimation;
+                performMoveLogic(move, fromPiece);
+            });
+        }
+    } else {
+        // No animation - just do logic
+        performMoveLogic(move, fromPiece);
+    }
+}
+
+function performMoveLogic(move, fromPiece) {
     if (move.type === 'run' || move.type === 'jump') {
         pyramid[move.level][move.row][move.col].piece = fromPiece;
         pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece = null;
@@ -531,41 +650,35 @@ function executeMove(move) {
         const smashedPiece = pyramid[move.level][move.row][move.col].piece;
         pyramid[move.level][move.row][move.col].piece = fromPiece;
         pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece = null;
-        showMessage(`${fromPiece} smashed ${smashedPiece}!`);
         lastPush = null;
     } else if (move.type === 'push') {
         const pushedPiece = pyramid[move.level][move.row][move.col].piece;
-
-        // Check if destination has a piece (Smash)
         const targetPiece = pyramid[move.pushTo.level][move.pushTo.row][move.pushTo.col].piece;
 
         pyramid[move.pushTo.level][move.pushTo.row][move.pushTo.col].piece = pushedPiece;
         pyramid[move.level][move.row][move.col].piece = fromPiece;
         pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece = null;
 
-        // Track the push event
         lastPush = {
-            pusher: { level: move.level, row: move.row, col: move.col }, // Where the pusher ended up
-            pushed: { level: move.pushTo.level, row: move.pushTo.row, col: move.pushTo.col } // Where the pushed stone ended up
+            pusher: { level: move.level, row: move.row, col: move.col },
+            pushed: { level: move.pushTo.level, row: move.pushTo.row, col: move.pushTo.col }
         };
 
         if (move.pushTo.level < move.level) {
             if (targetPiece) {
-                showMessage(`DROP and SMASH! Stone dropped to level ${move.pushTo.level} and smashed ${targetPiece}!`);
+                showMessage(`DROP and SMASH!`);
             } else {
-                showMessage(`DROP! Stone dropped to level ${move.pushTo.level}.`);
+                showMessage(`DROP to lower level!`);
             }
         }
     } else if (move.type === 'push-fall') {
         pyramid[move.level][move.row][move.col].piece = fromPiece;
         pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece = null;
-        showMessage(`FALL! Stone pushed off the pyramid!`);
+        showMessage(`FALL! Stone pushed off!`);
         lastPush = null;
     }
 
-    // Check for Osiris
     checkAndRemoveOsiris();
-
     endTurn();
 }
 
@@ -573,12 +686,10 @@ function checkAndRemoveOsiris() {
     const opponent = currentPlayer === 'white' ? 'black' : 'white';
     let stonesToRemove = [];
 
-    // Iterate through each level independently
     LEVELS.forEach(({ level, size }) => {
         const grid = pyramid[level];
         const gridMap = [];
 
-        // Create a map for the current level
         for (let r = 0; r < size; r++) {
             const rowMap = [];
             for (let c = 0; c < size; c++) {
@@ -591,16 +702,12 @@ function checkAndRemoveOsiris() {
             gridMap.push(rowMap);
         }
 
-        // Check Rows
         for (let r = 0; r < size; r++) {
             const rowPieces = grid[r].map(cell => cell.piece);
-            // Active Capture
             stonesToRemove.push(...checkLine(rowPieces, gridMap[r], currentPlayer, opponent));
-            // Passive Capture
             stonesToRemove.push(...checkLine(rowPieces, gridMap[r], opponent, currentPlayer));
         }
 
-        // Check Cols
         for (let c = 0; c < size; c++) {
             const colPieces = [];
             const colMap = [];
@@ -608,15 +715,12 @@ function checkAndRemoveOsiris() {
                 colPieces.push(grid[r][c].piece);
                 colMap.push(gridMap[r][c]);
             }
-            // Active Capture
             stonesToRemove.push(...checkLine(colPieces, colMap, currentPlayer, opponent));
-            // Passive Capture
             stonesToRemove.push(...checkLine(colPieces, colMap, opponent, currentPlayer));
         }
     });
 
     if (stonesToRemove.length > 0) {
-        // Remove duplicates (in case a stone is captured both horizontally and vertically)
         const uniqueStones = [];
         const seen = new Set();
         stonesToRemove.forEach(s => {
@@ -627,20 +731,51 @@ function checkAndRemoveOsiris() {
             }
         });
 
-        uniqueStones.forEach(({ level, row, col }) => {
-            const piece = pyramid[level][row][col].piece;
-            pyramid[level][row][col].piece = null;
-            // Optional: Visual effect or message
-        });
-
         showMessage(`Osiris! ${uniqueStones.length} stones captured!`);
+        
+        // Trigger Osiris animation in 3D
+        if (view3D && is3DMode) {
+            view3D.playOsirisAnimation(uniqueStones, () => {
+                // After animation, actually remove the stones
+                uniqueStones.forEach(({ level, row, col }) => {
+                    pyramid[level][row][col].piece = null;
+                });
+                
+                if (view3D) {
+                    uniqueStones.forEach(({ level, row, col }) => {
+                        const key = `${level},${row},${col}`;
+                        const mesh = view3D.stoneMeshes.get(key);
+                        if (mesh) {
+                            view3D.scene.remove(mesh);
+                            view3D.stoneMeshes.delete(key);
+                        }
+                    });
+                }
+                updateUI();
+            });
+        } else {
+            // No 3D animation - just remove
+            uniqueStones.forEach(({ level, row, col }) => {
+                pyramid[level][row][col].piece = null;
+            });
+            
+            if (view3D) {
+                uniqueStones.forEach(({ level, row, col }) => {
+                    const key = `${level},${row},${col}`;
+                    const mesh = view3D.stoneMeshes.get(key);
+                    if (mesh) {
+                        view3D.scene.remove(mesh);
+                        view3D.stoneMeshes.delete(key);
+                    }
+                });
+            }
+            updateUI();
+        }
     }
 }
 
 function checkLine(line, map, player, opponent) {
     const captured = [];
-    // Pattern: Player - Opponent(s) - Player
-    // Find all indices of Player
     const playerIndices = [];
     line.forEach((p, i) => {
         if (p === player) playerIndices.push(i);
@@ -650,8 +785,7 @@ function checkLine(line, map, player, opponent) {
         const start = playerIndices[i];
         const end = playerIndices[i + 1];
 
-        // Check if everything between start and end is Opponent
-        if (end > start + 1) { // Must have at least one stone in between
+        if (end > start + 1) {
             let allOpponent = true;
             for (let k = start + 1; k < end; k++) {
                 if (line[k] !== opponent) {
@@ -670,24 +804,20 @@ function checkLine(line, map, player, opponent) {
     return captured;
 }
 
-function cancelMove() {
-    selectedStone = null;
-    validMoves = [];
-    gameState = 'SELECT_STONE';
-    drawPyramid();
-    updateStatus();
-    updateUI();
-}
-
 function endTurn() {
     selectedStone = null;
     validMoves = [];
     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
     gameState = 'SELECT_STONE';
-    drawPyramid();
-    updateStatus();
-    updateCounts();
     updateUI();
+
+    if (view3D) {
+        view3D.updateStones();
+        view3D.updateIndicators();
+    }
+    if (view2D) {
+        view2D.draw();
+    }
 
     if (gameState !== 'GAME_OVER' && isVsComputer && currentPlayer === 'black') {
         setTimeout(makeAIMove, 600);
@@ -703,7 +833,6 @@ function makeAIMove() {
 
     let allPossibleMoves = [];
 
-    // Collect all valid moves for black
     pyramid.forEach((grid, level) => {
         grid.forEach((row, r) => {
             row.forEach((cell, c) => {
@@ -725,14 +854,11 @@ function makeAIMove() {
     });
 
     if (allPossibleMoves.length === 0) {
-        // AI has no moves
         gameState = 'GAME_OVER';
-        updateStatus('Game Over! White wins!');
-        showGameOverModal('White Wins!', 'White wins! Black has no legal moves.');
+        showGameOver('White Wins!', 'Black has no legal moves.');
         return;
     }
 
-    // Heuristic Evaluation function for single move
     let bestMove = null;
     let bestScore = -Infinity;
 
@@ -740,62 +866,45 @@ function makeAIMove() {
         let score = 0;
         const { stone, move } = action;
 
-        // 1. Smash moves (direct capture)
         if (move.type === 'smash') {
             const smashedPiece = pyramid[move.level][move.row][move.col].piece;
-            if (smashedPiece === 'white') {
-                score += 150; // Good: smashed enemy
-            } else if (smashedPiece === 'black') {
-                score -= 500; // BAD: smashed own stone!
-            }
+            if (smashedPiece === 'white') score += 150;
+            else if (smashedPiece === 'black') score -= 500;
         }
 
-        // 2. Push moves
         if (move.type === 'push-fall') {
             const pushedPiece = pyramid[move.level][move.row][move.col].piece;
-            if (pushedPiece === 'white') {
-                score += 150; // Good: pushed enemy off board
-            } else if (pushedPiece === 'black') {
-                score -= 500; // BAD: pushed own stone off board!
-            }
+            if (pushedPiece === 'white') score += 150;
+            else if (pushedPiece === 'black') score -= 500;
         } else if (move.type === 'push') {
             const pushedPiece = pyramid[move.level][move.row][move.col].piece;
             const targetPiece = pyramid[move.pushTo.level][move.pushTo.row][move.pushTo.col].piece;
 
             if (pushedPiece === 'white') {
-                score += 30; // Pushing enemy is generally good
-                if (move.pushTo.level < move.level && targetPiece === 'black') {
-                    score -= 400; // BAD: pushing enemy to smash our own stone!
-                } else if (move.pushTo.level < move.level && targetPiece === 'white') {
-                    score += 100; // Good: pushing enemy to smash another enemy!
-                }
+                score += 30;
+                if (move.pushTo.level < move.level && targetPiece === 'black') score -= 400;
+                else if (move.pushTo.level < move.level && targetPiece === 'white') score += 100;
             } else if (pushedPiece === 'black') {
-                score -= 60; // Pushing own stones is risky
-                if (move.pushTo.level < move.level && targetPiece === 'black') {
-                    score -= 500; // VERY BAD: pushing own stone to smash another own stone!
-                } else if (move.pushTo.level < move.level && targetPiece === 'white') {
-                    score -= 100; // BAD: dropping own stone onto enemy (self-destruct)
-                }
+                score -= 60;
+                if (move.pushTo.level < move.level && targetPiece === 'black') score -= 500;
+                else if (move.pushTo.level < move.level && targetPiece === 'white') score -= 100;
             }
         }
 
-        // 3. Positional Advantage (moving up)
         if (move.level === 3) {
-            score += 10000; // Winner!
-        } else if (move.level > stone.level || (move.type === 'jump')) {
+            score += 10000;
+        } else if (move.level > stone.level || move.type === 'jump') {
             score += 40 * move.level;
         } else if (move.level < stone.level && move.type !== 'smash' && move.type !== 'push') {
-            score -= 20; // Discourage moving down without a reason
+            score -= 20;
         }
 
-        // 4. Center-ish bias for lower levels
         if (move.level < 2) {
             const center = LEVELS[move.level].size / 2 - 0.5;
             const dist = Math.abs(move.row - center) + Math.abs(move.col - center);
             score += (5 - dist) * 2;
         }
 
-        // 5. Winning fields on Level 2
         if (move.level === 2) {
             if ((move.row === 0 && move.col === 0) || (move.row === 0 && move.col === 2) ||
                 (move.row === 2 && move.col === 0) || (move.row === 2 && move.col === 2)) {
@@ -803,22 +912,14 @@ function makeAIMove() {
             }
         }
 
-        // 6. Randomness
         score += Math.random() * 10;
 
-        // 7. Loop Prevention: Penalize moving the same stone too many times in a row
         if (aiLastMovedStone &&
             aiLastMovedStone.level === stone.level &&
             aiLastMovedStone.row === stone.row &&
             aiLastMovedStone.col === stone.col) {
-
-            if (aiConsecutiveMoveCount >= 2) {
-                // Heavily penalize moving the same stone a 3rd time
-                score -= 200;
-            } else if (aiConsecutiveMoveCount >= 1) {
-                // Slightly penalize moving it twice (prefer variety)
-                score -= 30;
-            }
+            if (aiConsecutiveMoveCount >= 2) score -= 200;
+            else if (aiConsecutiveMoveCount >= 1) score -= 30;
         }
 
         if (score > bestScore) {
@@ -827,29 +928,790 @@ function makeAIMove() {
         }
     });
 
-    // Execute the best move found
     if (bestMove) {
-        selectedStone = bestMove.stone; // Mock selection
+        selectedStone = bestMove.stone;
         executeMove(bestMove.move);
     }
 }
 
 // ============================================
-// EVENT LISTENERS
+// 3D VIEW IMPLEMENTATION
 // ============================================
 
-resetButton.addEventListener('click', initializePyramid);
-cancelButton.addEventListener('click', cancelMove);
-opponentButton.addEventListener('click', () => {
-    isVsComputer = !isVsComputer;
-    opponentButton.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
-    if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
-        setTimeout(makeAIMove, 600);
+class PyramidView3D {
+    constructor(container, gameInterface) {
+        this.container = container;
+        this.game = gameInterface;
+        this.cellMeshes = new Map();
+        this.stoneMeshes = new Map();
+        this.indicatorMeshes = [];
+        this.init();
     }
-});
+
+    init() {
+        // Check if Three.js is loaded
+        if (typeof THREE === 'undefined') {
+            console.error('Three.js not loaded!');
+            return;
+        }
+        
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x1a1510);
+        this.scene.fog = new THREE.Fog(0x1a1510, 25, 120);
+
+        const aspect = window.innerWidth / window.innerHeight;
+        this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+                this.camera.position.set(8, 10, 8);
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setClearColor(0x1a1510);
+        this.container.appendChild(this.renderer.domElement);
+
+        // Check if OrbitControls is available
+        if (typeof THREE.OrbitControls !== 'undefined') {
+            this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+            this.controls.enableDamping = true;
+            this.controls.target.set(0, 1.0, 0);
+            this.controls.minDistance = 8;
+            this.controls.maxDistance = 45;
+            this.controls.maxPolarAngle = Math.PI * 0.48;
+        } else {
+            console.warn('OrbitControls not available, using simple camera');
+            this.controls = null;
+        }
+
+        this.setupLights();
+        this.createDesertEnvironment();
+        this.createPyramid();
+        this.setupRaycaster();
+        this.setupKeyboard();
+        this.running = true;
+        
+        window.addEventListener('resize', () => this.onResize());
+        
+        this.animate();
+    }
+
+    setupLights() {
+        const ambient = new THREE.AmbientLight(0xffeedd, 0.4);
+        this.scene.add(ambient);
+
+        const hemi = new THREE.HemisphereLight(0xffddaa, 0x443322, 0.5);
+        this.scene.add(hemi);
+
+        const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
+        sun.position.set(25, 35, 15);
+        this.scene.add(sun);
+
+        const fill = new THREE.DirectionalLight(0x8888aa, 0.3);
+        fill.position.set(-15, 10, -15);
+        this.scene.add(fill);
+    }
+
+    createDesertEnvironment() {
+        const groundGeo = new THREE.PlaneGeometry(200, 200, 40, 40);
+        const vertices = groundGeo.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            vertices[i + 2] += Math.random() * 0.2 - 0.1;
+        }
+        groundGeo.computeVertexNormals();
+
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x6b5545,
+            roughness: 0.95,
+            metalness: 0.0,
+            flatShading: true
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.05;
+        this.scene.add(ground);
+
+        for (let i = 0; i < 150; i++) {
+            const size = Math.random() * 0.4 + 0.1;
+            const rockGeo = new THREE.DodecahedronGeometry(size, 0);
+            const rockMat = new THREE.MeshStandardMaterial({
+                color: Math.random() > 0.5 ? 0xc9a86c : 0xa08050,
+                roughness: 0.95,
+                flatShading: true
+            });
+            const rock = new THREE.Mesh(rockGeo, rockMat);
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 12 + Math.random() * 70;
+            rock.position.set(
+                Math.cos(angle) * dist,
+                size * 0.3,
+                Math.sin(angle) * dist
+            );
+            rock.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
+            this.scene.add(rock);
+        }
+
+        for (let i = 0; i < 12; i++) {
+            const width = 8 + Math.random() * 15;
+            const duneGeo = new THREE.SphereGeometry(width, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+            const duneMat = new THREE.MeshStandardMaterial({
+                color: 0xb8956a,
+                roughness: 1.0,
+                flatShading: true
+            });
+            const dune = new THREE.Mesh(duneGeo, duneMat);
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 20 + Math.random() * 50;
+            dune.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+            dune.scale.y = (2 + Math.random() * 3) / width * 0.25;
+            this.scene.add(dune);
+        }
+
+        for (let i = 0; i < 4; i++) {
+            const size = 4 + Math.random() * 8;
+            const pyramidGeo = new THREE.ConeGeometry(size, size * 0.75, 4);
+            const pyramidMat = new THREE.MeshStandardMaterial({
+                color: 0x6b5545,
+                roughness: 0.85,
+                flatShading: true
+            });
+            const distantPyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 45 + Math.random() * 35;
+            distantPyramid.position.set(
+                Math.cos(angle) * dist,
+                size * 0.375,
+                Math.sin(angle) * dist
+            );
+            distantPyramid.rotation.y = Math.random() * Math.PI;
+            this.scene.add(distantPyramid);
+        }
+    }
+
+    createPyramid() {
+        const levelHeight = 0.6;
+        const cellSize = 1.0;
+
+        LEVELS.forEach(({ level, size }) => {
+            const levelOffset = (size - 1) / 2;
+            const y = level * levelHeight;
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const x = (c - levelOffset) * cellSize;
+                    const z = (r - levelOffset) * cellSize;
+
+                    const cellGeo = new THREE.BoxGeometry(cellSize * 0.92, levelHeight * 0.95, cellSize * 0.92);
+                    const cellMat = new THREE.MeshStandardMaterial({
+                        color: 0xb8a080,
+                        roughness: 0.8,
+                        metalness: 0.05
+                    });
+                    const cellMesh = new THREE.Mesh(cellGeo, cellMat);
+                    cellMesh.position.set(x, y, z);
+                    cellMesh.userData = { level, row: r, col: c };
+                    this.scene.add(cellMesh);
+                    this.cellMeshes.set(`${level},${r},${c}`, cellMesh);
+
+                    // Add victory field indicator (blue circle on level 2 corners)
+                    // Level 2 (3x3) has victory on the 4 corners: (0,0), (0,2), (2,0), (2,2)
+                    const isVictory = (level === 2 && r === 0 && c === 0) ||
+                                      (level === 2 && r === 0 && c === 2) ||
+                                      (level === 2 && r === 2 && c === 0) ||
+                                      (level === 2 && r === 2 && c === 2);
+                    
+                    if (isVictory) {
+                        const ringGeo = new THREE.RingGeometry(0.28, 0.42, 24);
+                        const ringMat = new THREE.MeshBasicMaterial({
+                            color: 0x60a5fa,
+                            side: THREE.DoubleSide,
+                            transparent: true,
+                            opacity: 0.8
+                        });
+                        const ring = new THREE.Mesh(ringGeo, ringMat);
+                        ring.rotation.x = -Math.PI / 2;
+                        ring.position.set(x, y + levelHeight * 0.48, z);
+                        this.scene.add(ring);
+                    }
+                }
+            }
+        });
+
+        this.updateStones();
+    }
+
+    getWorldPosition(level, row, col) {
+        const levelHeight = 0.6;
+        const cellSize = 1.0;
+        const size = LEVELS[level].size;
+        const levelOffset = (size - 1) / 2;
+        const y = level * levelHeight + levelHeight * 0.5;
+        const x = (col - levelOffset) * cellSize;
+        const z = (row - levelOffset) * cellSize;
+        return new THREE.Vector3(x, y, z);
+    }
+
+    updateStones() {
+        const pyramid = this.game.getPyramid();
+        
+        this.stoneMeshes.forEach((mesh, key) => {
+            const [level, row, col] = key.split(',').map(Number);
+            const cell = pyramid[level]?.[row]?.[col];
+            if (!cell || !cell.piece) {
+                this.scene.remove(mesh);
+                this.stoneMeshes.delete(key);
+            }
+        });
+
+        pyramid.forEach((grid, level) => {
+            grid.forEach((row, r) => {
+                row.forEach((cell, c) => {
+                    if (cell.piece) {
+                        const key = `${level},${r},${c}`;
+                        if (!this.stoneMeshes.has(key)) {
+                            const stoneMesh = this.createStoneMesh(cell.piece);
+                            const pos = this.getWorldPosition(level, r, c);
+                            stoneMesh.position.copy(pos);
+                            stoneMesh.userData = { level, row: r, col: c };
+                            this.scene.add(stoneMesh);
+                            this.stoneMeshes.set(key, stoneMesh);
+                        } else {
+                            const mesh = this.stoneMeshes.get(key);
+                            const pos = this.getWorldPosition(level, r, c);
+                            if (!animatedStones.has(key)) {
+                                mesh.position.copy(pos);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    createStoneMesh(color) {
+        const group = new THREE.Group();
+        
+        const bodyGeo = new THREE.CylinderGeometry(0.32, 0.36, 0.45, 16);
+        const bodyMat = new THREE.MeshStandardMaterial({
+            color: color === 'white' ? 0xffffff : 0x1a1a1a,
+            roughness: 0.35,
+            metalness: 0.15
+        });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        group.add(body);
+        
+        const topGeo = new THREE.SphereGeometry(0.32, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+        const top = new THREE.Mesh(topGeo, bodyMat);
+        top.position.y = 0.225;
+        group.add(top);
+
+        const bevelGeo = new THREE.TorusGeometry(0.32, 0.02, 8, 24);
+        const bevelMat = new THREE.MeshStandardMaterial({
+            color: 0xC5A059,
+            roughness: 0.4,
+            metalness: 0.5
+        });
+        const bevel = new THREE.Mesh(bevelGeo, bevelMat);
+        bevel.rotation.x = Math.PI / 2;
+        bevel.position.y = 0.22;
+        group.add(bevel);
+
+        return group;
+    }
+
+    updateIndicators() {
+        this.indicatorMeshes.forEach(mesh => {
+            this.scene.remove(mesh);
+        });
+        this.indicatorMeshes = [];
+
+        const validMoves = this.game.getValidMoves();
+        const selectedStone = this.game.getSelectedStone();
+        
+        if (!selectedStone || validMoves.length === 0) return;
+
+        validMoves.forEach(move => {
+            const isDeadly = move.type === 'smash' || move.type === 'push-fall' || 
+                            (move.type === 'push' && move.pushTo === null);
+            
+            const currentPlayer = this.game.getCurrentPlayer();
+            let ringColor;
+            if (isDeadly) {
+                ringColor = 0xff3333; // Red for deadly
+            } else if (currentPlayer === 'white') {
+                ringColor = 0xffdd44; // Yellow/gold for white player (more visible)
+            } else {
+                ringColor = 0x222222; // Dark gray for black player (more visible)
+            }
+            
+            const indicatorGeo = new THREE.RingGeometry(0.2, 0.35, 24);
+            const indicatorMat = new THREE.MeshBasicMaterial({
+                color: ringColor,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide
+            });
+            const indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
+            
+            const pos = this.getWorldPosition(move.level, move.row, move.col);
+            // Place ring slightly above the cell surface
+            const levelHeight = 0.6;
+            indicator.position.set(pos.x, pos.y + levelHeight * 0.15, pos.z);
+            indicator.rotation.x = -Math.PI / 2;
+            
+            this.scene.add(indicator);
+            this.indicatorMeshes.push(indicator);
+        });
+    }
+
+    setupRaycaster() {
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+
+        const getTarget = (clientX, clientY) => {
+            const rect = this.container.getBoundingClientRect();
+            this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            
+            // Get all intersections sorted by distance (closest first)
+            const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+            
+            // First, check if we hit any stones (they should take priority)
+            for (const intersect of intersects) {
+                let obj = intersect.object;
+                while (obj) {
+                    // Check if it's a stone (has level but is part of stoneMeshes)
+                    if (obj.userData && obj.userData.level !== undefined) {
+                        const key = `${obj.userData.level},${obj.userData.row},${obj.userData.col}`;
+                        if (this.stoneMeshes.has(key)) {
+                            return obj.userData;
+                        }
+                    }
+                    obj = obj.parent;
+                }
+            }
+            
+            // If no stone hit, check cells
+            for (const intersect of intersects) {
+                let obj = intersect.object;
+                while (obj) {
+                    if (obj.userData && obj.userData.level !== undefined) {
+                        const key = `${obj.userData.level},${obj.userData.row},${obj.userData.col}`;
+                        // Only return if it's a cell, not a stone
+                        if (this.cellMeshes.has(key)) {
+                            return obj.userData;
+                        }
+                    }
+                    obj = obj.parent;
+                }
+            }
+            return null;
+        };
+
+        this.container.addEventListener('click', (e) => {
+            const data = getTarget(e.clientX, e.clientY);
+            if (data) {
+                this.game.onCellClick(data.level, data.row, data.col);
+            }
+        });
+    }
+
+    setupKeyboard() {
+        this.keys = {};
+        window.addEventListener('keydown', (e) => {
+            this.keys[e.code] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+        });
+    }
+
+    animateStone(fromKey, toKey, move, callback) {
+        const mesh = this.stoneMeshes.get(fromKey);
+        if (!mesh) {
+            if (callback) callback();
+            return;
+        }
+
+        animatedStones.set(fromKey, { mesh, toKey, move, callback });
+
+        const startPos = mesh.position.clone();
+        const endPos = this.getWorldPosition(move.level, move.row, move.col);
+        
+        // Different durations for different move types
+        let duration = 350;
+        if (move.type === 'push') duration = 500; // Slower for push to see it clearly
+        if (move.type === 'smash' || move.type === 'push-fall') duration = 400;
+        
+        const startTime = Date.now();
+
+        const animateStep = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+
+            mesh.position.lerpVectors(startPos, endPos, eased);
+
+            if (move.type === 'smash' || move.type === 'push-fall') {
+                // Smash: arc up and spin
+                mesh.position.y = startPos.y + (endPos.y - startPos.y) * eased - Math.sin(progress * Math.PI) * 1.5;
+                mesh.rotation.y = progress * Math.PI * 2;
+            } else if (move.type === 'push') {
+                // Push: lift up slightly to show it's being pushed
+                const liftHeight = 0.3;
+                mesh.position.y = startPos.y + (endPos.y - startPos.y) * eased + Math.sin(progress * Math.PI) * liftHeight;
+            } else {
+                // Normal move: slight hop
+                mesh.position.y = startPos.y + (endPos.y - startPos.y) * eased + Math.sin(progress * Math.PI) * 0.15;
+            }
+
+            if (progress < 1) {
+                requestAnimationFrame(animateStep);
+            } else {
+                animatedStones.delete(fromKey);
+                if (move.type === 'smash' || move.type === 'push-fall') {
+                    this.scene.remove(mesh);
+                    this.stoneMeshes.delete(fromKey);
+                } else {
+                    this.stoneMeshes.delete(fromKey);
+                    this.stoneMeshes.set(toKey, mesh);
+                }
+                if (callback) callback();
+            }
+        };
+
+        animateStep();
+    }
+
+    playOsirisAnimation(stonesToRemove, callback) {
+        if (stonesToRemove.length === 0) {
+            if (callback) callback();
+            return;
+        }
+
+        const lasers = [];
+        
+        // Get positions of all stones
+        const positions = stonesToRemove.map(s => this.getWorldPosition(s.level, s.row, s.col));
+        
+        // Calculate center
+        const center = new THREE.Vector3();
+        positions.forEach(p => center.add(p));
+        center.divideScalar(positions.length);
+        
+        // PHASE 1: Draw blue line connecting the attacking stones (the ones on the ends)
+        // In an Osiris pattern, it's: attacker - captured - attacker
+        // The stonesToRemove are the captured ones in the middle
+        
+        // Find the outer stones (attackers) - they're not in stonesToRemove but adjacent
+        const attackers = [];
+        stonesToRemove.forEach(captured => {
+            const capPos = this.getWorldPosition(captured.level, captured.row, captured.col);
+            // Look for adjacent stones of the current player color
+            const captures = pyramid[captured.level][captured.row][captured.col].piece;
+            const attackerColor = captures === 'white' ? 'black' : 'white';
+            
+            // Check all adjacent positions for attacker stones
+            const directions = [[-1,0], [1,0], [0,-1], [0,1]];
+            directions.forEach(([dr, dc]) => {
+                const nr = captured.row + dr;
+                const nc = captured.col + dc;
+                if (nr >= 0 && nr < LEVELS[captured.level].size && 
+                    nc >= 0 && nc < LEVELS[captured.level].size) {
+                    const adjPiece = pyramid[captured.level][nr][nc]?.piece;
+                    if (adjPiece === attackerColor) {
+                        const adjPos = this.getWorldPosition(captured.level, nr, nc);
+                        attackers.push({ pos: adjPos, level: captured.level, row: nr, col: nc });
+                    }
+                }
+            });
+        });
+
+        // Create blue laser lines between attackers through the captured stones
+        // Connect each pair of attackers
+        const uniqueAttackers = [];
+        const seen = new Set();
+        attackers.forEach(a => {
+            const key = `${a.level},${a.row},${a.col}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueAttackers.push(a);
+            }
+        });
+
+        // Create laser from each attacker to center
+        uniqueAttackers.forEach(attacker => {
+            const points = [attacker.pos, center];
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ 
+                color: 0x00aaff, 
+                transparent: true, 
+                opacity: 0,
+                linewidth: 2
+            });
+            const laser = new THREE.Line(geometry, material);
+            this.scene.add(laser);
+            lasers.push(laser);
+        });
+
+        // PHASE 2: After laser, electrify the captured stones
+        const electricLight = new THREE.PointLight(0x00ffff, 0, 5);
+        electricLight.position.copy(center);
+        this.scene.add(electricLight);
+
+        // Add glow to captured stones
+        stonesToRemove.forEach(({ level, row, col }) => {
+            const key = `${level},${row},${col}`;
+            const mesh = this.stoneMeshes.get(key);
+            if (mesh) {
+                mesh.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material.emissive = new THREE.Color(0x00ffff);
+                        child.material.emissiveIntensity = 0;
+                    }
+                });
+            }
+        });
+
+        // Two-phase animation
+        const phase1Duration = 500; // Blue line phase
+        const phase2Duration = 600;  // Electric phase
+        const startTime = Date.now();
+        
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            
+            if (elapsed < phase1Duration) {
+                // Phase 1: Blue laser lines
+                const progress = elapsed / phase1Duration;
+                lasers.forEach(laser => {
+                    laser.material.opacity = Math.sin(progress * Math.PI) * 0.9;
+                });
+                requestAnimationFrame(animate);
+            } else if (elapsed < phase1Duration + phase2Duration) {
+                // Phase 2: Electrify captured stones
+                const progress = (elapsed - phase1Duration) / phase2Duration;
+                
+                // Fade out lasers
+                lasers.forEach(laser => {
+                    laser.material.opacity = 0.9 * (1 - progress);
+                });
+                
+                // Pulse electric light
+                electricLight.intensity = Math.sin(progress * Math.PI * 8) * 2 + 2;
+                
+                // Pulse stone emissive
+                stonesToRemove.forEach(({ level, row, col }) => {
+                    const key = `${level},${row},${col}`;
+                    const mesh = this.stoneMeshes.get(key);
+                    if (mesh) {
+                        mesh.traverse((child) => {
+                            if (child.isMesh && child.material) {
+                                child.material.emissiveIntensity = Math.sin(progress * Math.PI * 6) * 0.6 + 0.6;
+                            }
+                        });
+                    }
+                });
+                
+                requestAnimationFrame(animate);
+            } else {
+                // Cleanup
+                lasers.forEach(laser => {
+                    this.scene.remove(laser);
+                    laser.geometry.dispose();
+                    laser.material.dispose();
+                });
+                this.scene.remove(electricLight);
+                
+                // Reset emissive
+                stonesToRemove.forEach(({ level, row, col }) => {
+                    const key = `${level},${row},${col}`;
+                    const mesh = this.stoneMeshes.get(key);
+                    if (mesh) {
+                        mesh.traverse((child) => {
+                            if (child.isMesh && child.material) {
+                                child.material.emissive = new THREE.Color(0x000000);
+                                child.material.emissiveIntensity = 0;
+                            }
+                        });
+                    }
+                });
+                
+                if (callback) callback();
+            }
+        };
+        
+        animate();
+    }
+
+    onResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    animate() {
+        if (!this.running) return;
+        
+        requestAnimationFrame(() => this.animate());
+
+        const rotSpeed = 0.02;
+        
+        // Handle keyboard camera movement
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) {
+            if (this.controls) this.controls.rotateUp(rotSpeed);
+            else this.camera.position.y += 0.1;
+        }
+        if (this.keys['KeyS'] || this.keys['ArrowDown']) {
+            if (this.controls) this.controls.rotateUp(-rotSpeed);
+            else this.camera.position.y -= 0.1;
+        }
+        if (this.keys['KeyA'] || this.keys['ArrowLeft']) {
+            if (this.controls) this.controls.rotateLeft(rotSpeed);
+            else this.camera.position.x -= 0.1;
+        }
+        if (this.keys['KeyD'] || this.keys['ArrowRight']) {
+            if (this.controls) this.controls.rotateLeft(-rotSpeed);
+            else this.camera.position.x += 0.1;
+        }
+
+        if (this.controls) this.controls.update();
+        this.renderer.render(this.scene, this.camera);
+    }
+}
 
 // ============================================
-// INITIALIZATION
+// 2D VIEW IMPLEMENTATION
 // ============================================
 
-document.addEventListener('DOMContentLoaded', initializePyramid);
+class PyramidView2D {
+    constructor(container, gameInterface) {
+        this.container = container;
+        this.game = gameInterface;
+        this.canvas = document.createElement('canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.container.appendChild(this.canvas);
+        
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        this.setupInteraction();
+    }
+
+    resize() {
+        const rect = this.container.getBoundingClientRect();
+        const size = Math.min(rect.width, rect.height) * 0.9;
+        this.canvas.width = size;
+        this.canvas.height = size;
+        this.cellSize = size / 10;
+        this.draw();
+    }
+
+    getCellPosition(level, row, col) {
+        const gridSize = LEVELS[level].size;
+        const levelOffset = level * this.cellSize * 0.8;
+        const levelCellSize = this.cellSize * 0.85;
+        const levelCenterOffset = (LEVELS[0].size - gridSize) / 2;
+        
+        const x = (levelCenterOffset + col) * levelCellSize + levelOffset + this.cellSize;
+        const y = (levelCenterOffset + row) * levelCellSize + levelOffset + this.cellSize;
+        
+        return { x, y, size: levelCellSize * 0.85 };
+    }
+
+    draw() {
+        const ctx = this.ctx;
+        const size = this.canvas.width;
+        
+        ctx.fillStyle = '#1a1510';
+        ctx.fillRect(0, 0, size, size);
+
+        // Draw pyramid levels
+        LEVELS.forEach(({ level, size: gridSize }) => {
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    const pos = this.getCellPosition(level, r, c);
+                    const cell = pyramid[level]?.[r]?.[c];
+                    
+                    if (cell && cell.playable) {
+                        // Cell background
+                        const brightness = 0.9 - level * 0.15;
+                        ctx.fillStyle = `rgb(${Math.floor(232 * brightness)}, ${Math.floor(220 * brightness)}, ${Math.floor(200 * brightness)})`;
+                        ctx.fillRect(pos.x, pos.y, pos.size, pos.size);
+                        
+                        // Victory field indicator
+                        if (cell.victory) {
+                            ctx.strokeStyle = '#60a5fa';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.arc(pos.x + pos.size/2, pos.y + pos.size/2, pos.size/3, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+                        
+                        // Stone
+                        if (cell.piece) {
+                            const stoneSize = pos.size * 0.7;
+                            const x = pos.x + (pos.size - stoneSize) / 2;
+                            const y = pos.y + (pos.size - stoneSize) / 2;
+                            
+                            ctx.fillStyle = cell.piece === 'white' ? '#ffffff' : '#1a1a1a';
+                            ctx.beginPath();
+                            ctx.arc(x + stoneSize/2, y + stoneSize/2, stoneSize/2, 0, Math.PI * 2);
+                            ctx.fill();
+                            
+                            ctx.strokeStyle = cell.piece === 'white' ? '#999' : '#444';
+                            ctx.lineWidth = 1;
+                            ctx.stroke();
+                        }
+                        
+                        // Valid move indicator
+                        if (selectedStone && validMoves.some(m => m.level === level && m.row === r && m.col === c)) {
+                            const move = validMoves.find(m => m.level === level && m.row === r && m.col === c);
+                            const isDeadly = move.type === 'smash' || move.type === 'push-fall' || (move.type === 'push' && move.pushTo === null);
+                            
+                            ctx.fillStyle = isDeadly ? 'rgba(0,0,0,0.8)' : (currentPlayer === 'white' ? 'rgba(255,255,255,0.6)' : 'rgba(68,136,255,0.6)');
+                            ctx.beginPath();
+                            ctx.arc(pos.x + pos.size/2, pos.y + pos.size/2, pos.size * 0.2, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+        });
+
+        // Draw selected stone highlight
+        if (selectedStone) {
+            const pos = this.getCellPosition(selectedStone.level, selectedStone.row, selectedStone.col);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(pos.x - 2, pos.y - 2, pos.size + 4, pos.size + 4);
+        }
+    }
+
+    setupInteraction() {
+        this.canvas.addEventListener('click', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Check which cell was clicked
+            for (let level = 0; level < LEVELS.length; level++) {
+                for (let r = 0; r < LEVELS[level].size; r++) {
+                    for (let c = 0; c < LEVELS[level].size; c++) {
+                        const pos = this.getCellPosition(level, r, c);
+                        if (x >= pos.x && x <= pos.x + pos.size &&
+                            y >= pos.y && y <= pos.y + pos.size) {
+                            if (pyramid[level]?.[r]?.[c]?.playable) {
+                                this.game.onCellClick(level, r, c);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}

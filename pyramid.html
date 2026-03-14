@@ -5,115 +5,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pyramid - Seven Wonders</title>
-    <meta name="description" content="Play Pyramid, an ancient strategy game from the Seven Wonders series">
     <link rel="stylesheet" href="pyramid-style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
 </head>
 
 <body>
-    <a href="index.html" class="back-link">← Back to Seven Wonders</a>
+    <div id="game-container">
+        <div id="canvas-2d" class="canvas-container hidden"></div>
+        <div id="canvas-3d" class="canvas-container"></div>
+    </div>
 
-    <header class="game-header">
-        <h1 class="game-title">PYRAMID</h1>
-        <p class="game-subtitle">The Great Pyramid of Giza</p>
-    </header>
+    <div class="top-bar">
+        <a href="index.html" class="top-bar-btn top-bar-link">← Menu</a>
+        <button id="menu-toggle" class="top-bar-btn menu-toggle-btn">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </div>
 
-    <div class="status-panel">
-        <div class="turn-display">
-            <div class="current-player-indicator" id="current-player-color"></div>
-            <span id="game-status">White to move. Select a stone to move.</span>
-        </div>
-        <div class="stone-counts">
-            <span>White: <span id="white-count">7</span></span>
-            <span>Black: <span id="black-count">7</span></span>
-            <span>Top: <span id="top-count">0/4</span></span>
+    <div id="side-menu" class="side-menu">
+        <div class="menu-content">
+            <h1 class="game-title">PYRAMID</h1>
+            
+            <div class="player-info">
+                <div class="current-player-display">
+                    <div id="player-indicator" class="player-indicator"></div>
+                    <span id="player-name">White's Turn</span>
+                </div>
+            </div>
+
+            <div class="stone-counts-display">
+                <div class="count-item">
+                    <div class="count-stone white"></div>
+                    <span id="white-count">7</span>
+                </div>
+                <div class="count-item">
+                    <div class="count-stone black"></div>
+                    <span id="black-count">7</span>
+                </div>
+                <div class="count-item victory">
+                    <span>Top</span>
+                    <span id="top-count">0/4</span>
+                </div>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <button id="opponent-btn" class="menu-btn">Opponent: Human</button>
+            <button id="view-toggle-btn" class="menu-btn">View: 3D</button>
+            <button id="rules-btn" class="menu-btn rules-btn">Rules</button>
+            <button id="new-game-btn" class="menu-btn">Reset</button>
         </div>
     </div>
 
-    <div class="pyramid-container">
-        <div id="pyramid-board" class="pyramid-board">
-            <!-- All levels will be rendered here, stacked on top of each other -->
+    <div id="game-message" class="game-message hidden"></div>
+
+    <div id="game-over-overlay" class="game-over-overlay hidden">
+        <div class="game-over-content">
+            <h2 id="game-over-title">Game Over</h2>
+            <p id="game-over-text"></p>
+            <button id="play-again-btn" class="menu-btn">Play Again</button>
         </div>
     </div>
 
-    <div class="action-buttons">
-        <button id="cancel-button" class="action-btn cancel-btn hidden">Cancel Move</button>
-        <button id="reset-button" class="action-btn reset-btn">New Game</button>
-        <button id="opponent-btn" class="action-btn opponent-btn">Opponent: Human</button>
-        <button id="rules-btn" class="action-btn rules-btn">Rules</button>
-    </div>
-
-    <div id="message-box" class="hidden"></div>
-
-    <!-- Game Over Modal -->
-    <div id="game-over-modal" class="hidden">
-        <div class="message-overlay"></div>
-        <div class="message-content">
-            <h2 id="modal-title">Game Over</h2>
-            <p id="modal-text"></p>
-        </div>
-    </div>
-
-    <!-- Rules Modal -->
     <div id="rules-modal" class="rules-modal hidden">
         <div class="rules-overlay" id="rules-overlay"></div>
-        <div class="rules-content">
+        <div class="rules-panel">
             <h2>Pyramid Rules</h2>
-            <div class="rules-body">
-                <p><strong>GOAL</strong>
-                    Conquer the Pyramid by bringing four of your stones to the victory fields on the top level.</p>
+            <div class="rules-scroll">
+                <p><strong>GOAL</strong><br>Conquer the Pyramid by bringing four of your stones to the victory fields on the top level.</p>
 
-                <p><strong>SETUP</strong>
-                    Seven stones per side are automatically placed at the base level, facing each other across the
-                    board.</p>
+                <p><strong>SETUP</strong><br>Seven stones per side are automatically placed at the base level, facing each other.</p>
 
-                <p><strong>GAMEPLAY</strong>
-                    White moves first. Players alternate turns. Each stone has three options:</p>
+                <p><strong>GAMEPLAY</strong><br>White moves first. Each stone has three options:</p>
 
-                <p><strong>1 — RUN</strong>
-                    Move forward in a straight line to an empty field on the same or a lower level. Cannot run past or
-                    share a field with another stone. Moving to a lower occupied field <em>Smashes</em> that stone
-                    (removes it). No further move is allowed after a Smash.</p>
+                <p><strong>1 — RUN</strong><br>Move forward in a straight line to an empty field. Moving to a lower occupied field <em>Smashes</em> that stone.</p>
 
-                <p><strong>2 — JUMP</strong>
-                    Move to the adjacent empty field one level above.</p>
+                <p><strong>2 — JUMP</strong><br>Move to the adjacent empty field one level above.</p>
 
-                <p><strong>3 — PUSH</strong>
-                    Move into an adjacent stone's field, pushing it one step further. A pushed stone <em>can</em> smash
-                    a stone on a lower level, but cannot push another stone on the same level. A stone pushed off a
-                    corner of the lowest level <em>Falls</em> and is removed. A pushed stone cannot push back on the
-                    very next turn.</p>
+                <p><strong>3 — PUSH</strong><br>Move into an adjacent stone, pushing it one step. A stone pushed off the corner <em>Falls</em> and is removed.</p>
 
-                <p><strong>OSIRIS</strong>
-                    If any number of stones of one color are surrounded by the opponent's stones in a single line on the
-                    same level, those stones are removed. A <em>Double Osiris</em> — where alternating stones of both
-                    colors are removed — is also possible.</p>
+                <p><strong>OSIRIS</strong><br>If stones of one color are surrounded by opponent's stones in a line, those stones are removed.</p>
 
-                <p><strong>WINNING</strong>
-                    The first player to place 4 stones on the marked victory fields wins. If both players have fewer
-                    than 4 stones remaining, or a threefold repetition occurs, the game ends in a draw.</p>
+                <p><strong>WINNING</strong><br>First to place 4 stones on victory fields wins.</p>
             </div>
-            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
+            <button class="menu-btn close-rules-btn" id="close-rules-btn">Close</button>
         </div>
     </div>
 
-    <footer class="game-footer">
-        <p><a href="https://sevenwondersgames.com"
-                style="color: inherit; text-decoration: none;">SevenWondersGames.com</a></p>
-        <p>Game Design: Simon Allmer</p>
-    </footer>
-
     <script src="pyramid-game.js"></script>
-    <script>
-        document.getElementById('rules-btn').addEventListener('click', function () {
-            document.getElementById('rules-modal').classList.remove('hidden');
-        });
-        document.getElementById('rules-close-btn').addEventListener('click', function () {
-            document.getElementById('rules-modal').classList.add('hidden');
-        });
-        document.getElementById('rules-overlay').addEventListener('click', function () {
-            document.getElementById('rules-modal').classList.add('hidden');
-        });
-    </script>
 </body>
 
 </html>
