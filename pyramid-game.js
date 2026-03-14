@@ -973,10 +973,14 @@ class PyramidView3D {
         this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
                 this.camera.position.set(8, 10, 8);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor(0x1a1510);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.2;
         this.container.appendChild(this.renderer.domElement);
 
         // Check if OrbitControls is available
@@ -1005,19 +1009,35 @@ class PyramidView3D {
     }
 
     setupLights() {
-        const ambient = new THREE.AmbientLight(0xffeedd, 0.4);
+        this.scene.fog = new THREE.FogExp2(0xc9a86c, 0.015);
+
+        const ambient = new THREE.AmbientLight(0xffeedd, 0.3);
         this.scene.add(ambient);
 
-        const hemi = new THREE.HemisphereLight(0xffddaa, 0x443322, 0.5);
+        const hemi = new THREE.HemisphereLight(0xffddaa, 0x443322, 0.6);
         this.scene.add(hemi);
 
-        const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
+        const sun = new THREE.DirectionalLight(0xfff5e0, 1.8);
         sun.position.set(25, 35, 15);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        sun.shadow.camera.near = 1;
+        sun.shadow.camera.far = 100;
+        sun.shadow.camera.left = -30;
+        sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30;
+        sun.shadow.camera.bottom = -30;
+        sun.shadow.bias = -0.0005;
         this.scene.add(sun);
 
-        const fill = new THREE.DirectionalLight(0x8888aa, 0.3);
+        const fill = new THREE.DirectionalLight(0x8888aa, 0.4);
         fill.position.set(-15, 10, -15);
         this.scene.add(fill);
+        
+        const rim = new THREE.DirectionalLight(0xffaa66, 0.5);
+        rim.position.set(-20, 5, 20);
+        this.scene.add(rim);
     }
 
     createDesertEnvironment() {
@@ -1029,14 +1049,15 @@ class PyramidView3D {
         groundGeo.computeVertexNormals();
 
         const groundMat = new THREE.MeshStandardMaterial({
-            color: 0x6b5545,
-            roughness: 0.95,
+            color: 0x8b7355,
+            roughness: 0.9,
             metalness: 0.0,
             flatShading: true
         });
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.rotation.x = -Math.PI / 2;
         ground.position.y = -0.05;
+        ground.receiveShadow = true;
         this.scene.add(ground);
 
         for (let i = 0; i < 150; i++) {
@@ -1048,6 +1069,8 @@ class PyramidView3D {
                 flatShading: true
             });
             const rock = new THREE.Mesh(rockGeo, rockMat);
+            rock.castShadow = true;
+            rock.receiveShadow = true;
             const angle = Math.random() * Math.PI * 2;
             const dist = 12 + Math.random() * 70;
             rock.position.set(
@@ -1072,6 +1095,7 @@ class PyramidView3D {
                 flatShading: true
             });
             const dune = new THREE.Mesh(duneGeo, duneMat);
+            dune.receiveShadow = true;
             const angle = Math.random() * Math.PI * 2;
             const dist = 20 + Math.random() * 50;
             dune.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
@@ -1088,6 +1112,8 @@ class PyramidView3D {
                 flatShading: true
             });
             const distantPyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
+            distantPyramid.castShadow = true;
+            distantPyramid.receiveShadow = true;
             const angle = Math.random() * Math.PI * 2;
             const dist = 45 + Math.random() * 35;
             distantPyramid.position.set(
@@ -1108,12 +1134,23 @@ class PyramidView3D {
             const levelOffset = (size - 1) / 2;
             const y = level * levelHeight;
 
+            const basePlateGeo = new THREE.BoxGeometry(size * cellSize - 0.05, 0.1, size * cellSize - 0.05);
+            const basePlateMat = new THREE.MeshStandardMaterial({
+                color: 0x8a7862,
+                roughness: 0.95,
+                metalness: 0.0
+            });
+            const basePlate = new THREE.Mesh(basePlateGeo, basePlateMat);
+            basePlate.position.set(0, y - 0.05, 0);
+            basePlate.receiveShadow = true;
+            this.scene.add(basePlate);
+
             for (let r = 0; r < size; r++) {
                 for (let c = 0; c < size; c++) {
                     const x = (c - levelOffset) * cellSize;
                     const z = (r - levelOffset) * cellSize;
 
-                    const cellGeo = new THREE.BoxGeometry(cellSize * 0.92, levelHeight * 0.95, cellSize * 0.92);
+                    const cellGeo = new THREE.BoxGeometry(cellSize * 0.98, levelHeight * 1.0, cellSize * 0.98);
                     const cellMat = new THREE.MeshStandardMaterial({
                         color: 0xb8a080,
                         roughness: 0.8,
@@ -1121,6 +1158,8 @@ class PyramidView3D {
                     });
                     const cellMesh = new THREE.Mesh(cellGeo, cellMat);
                     cellMesh.position.set(x, y, z);
+                    cellMesh.receiveShadow = true;
+                    cellMesh.castShadow = true;
                     cellMesh.userData = { level, row: r, col: c };
                     this.scene.add(cellMesh);
                     this.cellMeshes.set(`${level},${r},${c}`, cellMesh);
@@ -1142,7 +1181,7 @@ class PyramidView3D {
                         });
                         const ring = new THREE.Mesh(ringGeo, ringMat);
                         ring.rotation.x = -Math.PI / 2;
-                        ring.position.set(x, y + levelHeight * 0.48, z);
+                        ring.position.set(x, y + levelHeight * 0.52, z);
                         this.scene.add(ring);
                     }
                 }
@@ -1203,29 +1242,36 @@ class PyramidView3D {
     createStoneMesh(color) {
         const group = new THREE.Group();
         
-        const bodyGeo = new THREE.CylinderGeometry(0.32, 0.36, 0.45, 16);
+        const bodyGeo = new THREE.CylinderGeometry(0.32, 0.36, 0.45, 24);
         const bodyMat = new THREE.MeshStandardMaterial({
-            color: color === 'white' ? 0xffffff : 0x1a1a1a,
-            roughness: 0.35,
-            metalness: 0.15
+            color: color === 'white' ? 0xf8f8f8 : 0x2a2a2a,
+            roughness: 0.25,
+            metalness: 0.3,
+            envMapIntensity: 0.5
         });
         const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.castShadow = true;
+        body.receiveShadow = true;
         group.add(body);
         
-        const topGeo = new THREE.SphereGeometry(0.32, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+        const topGeo = new THREE.SphereGeometry(0.32, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
         const top = new THREE.Mesh(topGeo, bodyMat);
         top.position.y = 0.225;
+        top.castShadow = true;
         group.add(top);
 
-        const bevelGeo = new THREE.TorusGeometry(0.32, 0.02, 8, 24);
+        const bevelGeo = new THREE.TorusGeometry(0.32, 0.025, 12, 32);
         const bevelMat = new THREE.MeshStandardMaterial({
-            color: 0xC5A059,
-            roughness: 0.4,
-            metalness: 0.5
+            color: 0xD4AF37,
+            roughness: 0.2,
+            metalness: 0.8,
+            emissive: 0x332200,
+            emissiveIntensity: 0.1
         });
         const bevel = new THREE.Mesh(bevelGeo, bevelMat);
         bevel.rotation.x = Math.PI / 2;
         bevel.position.y = 0.22;
+        bevel.castShadow = true;
         group.add(bevel);
 
         return group;
