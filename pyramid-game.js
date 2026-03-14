@@ -50,6 +50,7 @@ function initializeUI() {
     const opponentBtn = document.getElementById('opponent-btn');
     const rulesBtn = document.getElementById('rules-btn');
     const closeRulesBtn = document.getElementById('close-rules-btn');
+    const closeRulesBtnBottom = document.getElementById('close-rules-btn-bottom');
     const rulesOverlay = document.getElementById('rules-overlay');
     const rulesModal = document.getElementById('rules-modal');
     const playAgainBtn = document.getElementById('play-again-btn');
@@ -92,13 +93,13 @@ function initializeUI() {
         rulesModal.classList.remove('hidden');
     });
 
-    closeRulesBtn.addEventListener('click', () => {
+    const closeRules = () => {
         rulesModal.classList.add('hidden');
-    });
+    };
 
-    rulesOverlay.addEventListener('click', () => {
-        rulesModal.classList.add('hidden');
-    });
+    if (closeRulesBtn) closeRulesBtn.addEventListener('click', closeRules);
+    if (closeRulesBtnBottom) closeRulesBtnBottom.addEventListener('click', closeRules);
+    rulesOverlay.addEventListener('click', closeRules);
 
     playAgainBtn.addEventListener('click', () => {
         document.getElementById('game-over-overlay').classList.add('hidden');
@@ -1269,7 +1270,11 @@ class PyramidView3D {
     setupRaycaster() {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-
+        
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        
         const getTarget = (clientX, clientY) => {
             const rect = this.container.getBoundingClientRect();
             this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
@@ -1311,11 +1316,28 @@ class PyramidView3D {
             return null;
         };
 
-        this.container.addEventListener('click', (e) => {
-            const data = getTarget(e.clientX, e.clientY);
-            if (data) {
-                this.game.onCellClick(data.level, data.row, data.col);
+        this.container.addEventListener('pointerdown', (e) => {
+            isDragging = false;
+            startX = e.clientX;
+            startY = e.clientY;
+        });
+        
+        this.container.addEventListener('pointermove', (e) => {
+            const dx = Math.abs(e.clientX - startX);
+            const dy = Math.abs(e.clientY - startY);
+            if (dx > 10 || dy > 10) {
+                isDragging = true;
             }
+        });
+
+        this.container.addEventListener('pointerup', (e) => {
+            if (!isDragging) {
+                const data = getTarget(e.clientX, e.clientY);
+                if (data) {
+                    this.game.onCellClick(data.level, data.row, data.col);
+                }
+            }
+            isDragging = false;
         });
     }
 

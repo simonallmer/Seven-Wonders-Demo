@@ -46,6 +46,7 @@ html, body {
     width: 100%;
     height: 100%;
     pointer-events: auto;
+    touch-action: none;
 }
 
 .canvas-container.hidden {
@@ -546,6 +547,30 @@ html, body {
     display: block;
     margin: 24px auto 0;
     width: 100%;
+}
+
+.rules-close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(42, 37, 32, 0.8);
+    color: #f5f1e8;
+    font-size: 1.5rem;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.rules-close-btn:hover {
+    background: var(--gold);
+    color: var(--dark-stone);
+    transform: scale(1.1);
 }
 
 /* Responsive */
