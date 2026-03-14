@@ -117,7 +117,8 @@ function initializeUI() {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.code === 'Escape') {
+        if (e.code === 'Escape' || e.code === 'Space') {
+            e.preventDefault();
             if (!rulesModal.classList.contains('hidden')) {
                 rulesModal.classList.add('hidden');
             } else if (isMenuOpen) {
