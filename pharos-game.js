@@ -641,7 +641,8 @@ function endTurn() {
     drawBoard();
     updateStatus();
 
-    if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
+    if (isVsComputer && currentPlayer === 'black') {
+        gameState = 'SELECT_MOVE_STONE';
         setTimeout(makeAIMove, 600);
     }
 }
@@ -688,19 +689,104 @@ endTurnButton.addEventListener('click', () => {
 });
 let _opponentBtnTimeout = null;
 opponentButton.addEventListener('click', () => {
-    // Computer mode is coming soon — revert immediately after showing the message
     clearTimeout(_opponentBtnTimeout);
-    isVsComputer = false;
-    opponentButton.textContent = 'Computer Coming Soon';
-    _opponentBtnTimeout = setTimeout(() => {
-        opponentButton.textContent = 'Opponent: Human';
-    }, 1500);
+    isVsComputer = !isVsComputer;
+    opponentButton.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
 });
 
 
 // ============================================
 // AI LOGIC
 // ============================================
+
+function countOpponentMoves(player) {
+    const opponent = player === 'white' ? 'black' : 'white';
+    let moveCount = 0;
+    
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (board[r][c].piece === opponent) {
+                const targets = getPossibleMoves(r, c);
+                const lights = findAvailableLightSources(r, c, opponent);
+                if (targets.length > 0 && lights.length > 0) {
+                    moveCount += targets.length;
+                }
+            }
+        }
+    }
+    return moveCount;
+}
+
+function evaluateMove(stone, target, light, player) {
+    let score = 0;
+    const opponent = player === 'white' ? 'black' : 'white';
+    const targetColor = board[target.r][target.c].piece;
+    
+    // PRIORITY 1: Kill opponent stones (ATTACK)
+    if (targetColor === opponent) {
+        score += 1000;
+        
+        // Check if this capture also controls a beacon
+        if (isBeaconField(target.r, target.c)) {
+            score += 200;
+        }
+    }
+    
+    // PRIORITY 2: Control beacons (limit opponent movement)
+    if (isBeaconField(target.r, target.c)) {
+        score += 300;
+        
+        // If we can light a beacon, that's very valuable
+        if (targetColor === null) {
+            score += 150;
+        }
+    }
+    
+    // PRIORITY 3: Block opponent lines of sight
+    // Check if this move blocks opponent light sources
+    const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+    for (const [dr, dc] of directions) {
+        let nr = target.r + dr;
+        let nc = target.c + dc;
+        while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+            const cell = board[nr][nc];
+            if (cell.piece === opponent) {
+                // Moving here might block this opponent stone's light path
+                score += 50;
+                break;
+            }
+            if (cell.piece === player) {
+                break; // Blocked by own piece
+            }
+            nr += dr;
+            nc += dc;
+        }
+    }
+    
+    // PRIORITY 4: Advance towards opponent side (strategic positioning)
+    if (player === 'black') {
+        score += (8 - target.r) * 10; // Move up the board
+    } else {
+        score += target.r * 10;
+    }
+    
+    // PRIORITY 5: Prefer moves that keep options open (more adjacent moves)
+    const futureTargets = getPossibleMoves(target.r, target.c);
+    score += futureTargets.length * 5;
+    
+    // Loop prevention
+    if (aiLastMovedStone &&
+        aiLastMovedStone.r === stone.r &&
+        aiLastMovedStone.c === stone.c) {
+        if (aiConsecutiveMoveCount >= 2) score -= 500;
+        else if (aiConsecutiveMoveCount >= 1) score -= 100;
+    }
+    
+    // Random factor for variety
+    score += Math.random() * 20;
+    
+    return score;
+}
 
 function makeAIMove() {
     if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
@@ -712,7 +798,6 @@ function makeAIMove() {
         for (let r = 0; r < BOARD_SIZE; r++) {
             for (let c = 0; c < BOARD_SIZE; c++) {
                 if (board[r][c].piece === 'black') {
-                    // Temporarily set moveSource to test
                     moveSource = { r, c };
                     const targets = getPossibleMoves(r, c);
                     const lights = findAvailableLightSources(r, c, 'black');
@@ -720,7 +805,9 @@ function makeAIMove() {
 
                     if (targets.length > 0 && lights.length > 0) {
                         for (let t of targets) {
-                            validFirstMoves.push({ stone: { r, c }, target: t, light: lights[0] });
+                            for (let l of lights) {
+                                validFirstMoves.push({ stone: { r, c }, target: t, light: l });
+                            }
                         }
                     }
                 }
@@ -732,30 +819,12 @@ function makeAIMove() {
             return;
         }
 
-        // Evaluate moves purely based on targets (e.g., captures, beacon control)
+        // Evaluate moves with priority: attack > beacon control > blocking > position
         let bestScore = -Infinity;
         let bestMove = validFirstMoves[0];
 
         validFirstMoves.forEach(m => {
-            let score = 0;
-            const targetColor = board[m.target.r][m.target.c].piece;
-            if (targetColor === 'white') score += 200; // capture! (Increased weight)
-            if (isBeaconField(m.target.r, m.target.c)) score += 60; // beacon!
-
-            // Prefer advancing towards white's starting area (top)
-            score += (8 - m.target.r) * 5;
-
-            // Loop Prevention: Penalize moving the same stone too many times
-            if (aiLastMovedStone &&
-                aiLastMovedStone.r === m.stone.r &&
-                aiLastMovedStone.c === m.stone.c) {
-                if (aiConsecutiveMoveCount >= 2) score -= 300;
-                else if (aiConsecutiveMoveCount >= 1) score -= 50;
-            }
-
-            // Random jitter
-            score += Math.random() * 10;
-
+            const score = evaluateMove(m.stone, m.target, m.light, 'black');
             if (score > bestScore) {
                 bestScore = score;
                 bestMove = m;
@@ -764,15 +833,30 @@ function makeAIMove() {
 
         // Execute first click
         handleCellClick(bestMove.stone.r, bestMove.stone.c);
-        setTimeout(makeAIMove, 400); // Trigger next step
+        setTimeout(makeAIMove, 400);
         return;
     }
 
     if (gameState === 'SELECT_LIGHT_SOURCE') {
-        // AI picks random available light source
+        // AI picks best available light source
         if (potentialLightSources.length > 0) {
-            const ls = potentialLightSources[0];
-            handleCellClick(ls.r, ls.c);
+            let bestScore = -Infinity;
+            let bestSource = potentialLightSources[0];
+            
+            potentialLightSources.forEach(ls => {
+                let score = 0;
+                // Prefer light sources that are closer to the target
+                const dist = Math.abs(ls.r - moveSource.r) + Math.abs(ls.c - moveSource.c);
+                score -= dist * 10;
+                score += Math.random() * 5;
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestSource = ls;
+                }
+            });
+            
+            handleCellClick(bestSource.r, bestSource.c);
             setTimeout(makeAIMove, 400);
         } else {
             endTurnButton.click();
@@ -788,16 +872,23 @@ function makeAIMove() {
             potentialMoveTargets.forEach(tgt => {
                 let score = 0;
                 const targetColor = board[tgt.r][tgt.c].piece;
-                if (targetColor === 'white') score += 100;
-                if (isBeaconField(tgt.r, tgt.c)) score += 50;
-                score += (8 - tgt.r) * 5;
+                
+                // Attack is most important
+                if (targetColor === 'white') score += 500;
+                
+                // Beacon control
+                if (isBeaconField(tgt.r, tgt.c)) score += 150;
+                
+                // Strategic position
+                score += (8 - tgt.r) * 10;
+                
                 if (score > bestScore) {
                     bestScore = score;
                     bestTarget = tgt;
                 }
             });
             handleCellClick(bestTarget.r, bestTarget.c);
-            setTimeout(makeAIMove, 400); // Check for chains
+            setTimeout(makeAIMove, 400);
         } else {
             endTurnButton.click();
         }
