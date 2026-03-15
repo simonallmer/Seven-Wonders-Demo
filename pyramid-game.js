@@ -6,12 +6,35 @@
 // CONSTANTS & PYRAMID STRUCTURE
 // ============================================
 
-const LEVELS = [
-    { level: 0, size: 7, playableRim: true },
-    { level: 1, size: 5, playableRim: true },
-    { level: 2, size: 3, playableRim: true },
-    { level: 3, size: 1, playableRim: false }
-];
+function getPlayerOrder() {
+    if (playerCount === 2) return ['white', 'black'];
+    if (playerCount === 3) return ['white', 'red', 'black'];
+    return ['white', 'red', 'black', 'blue'];
+}
+
+let PLAYER_COLORS;
+let playerCount;
+
+function getLevels() {
+    if (playerCount <= 2) {
+        return [
+            { level: 0, size: 7, playableRim: true },
+            { level: 1, size: 5, playableRim: true },
+            { level: 2, size: 3, playableRim: true },
+            { level: 3, size: 1, playableRim: false }
+        ];
+    } else {
+        return [
+            { level: 0, size: 9, playableRim: false },
+            { level: 1, size: 7, playableRim: true },
+            { level: 2, size: 5, playableRim: true },
+            { level: 3, size: 3, playableRim: true },
+            { level: 4, size: 1, playableRim: false }
+        ];
+    }
+}
+
+let LEVELS = getLevels();
 
 // ============================================
 // GAME STATE
@@ -23,6 +46,8 @@ let validMoves = [];
 let gameState = 'SELECT_STONE';
 let lastPush = null;
 let isVsComputer = false;
+let isMoveInProgress = false; // Block input during move
+let turnInProgress = false;
 
 let aiLastMovedStone = null;
 let aiConsecutiveMoveCount = 0;
@@ -37,6 +62,9 @@ let isMenuOpen = false;
 // INITIALIZATION
 // ============================================
 
+playerCount = parseInt(localStorage.getItem('pyramidPlayerCount')) || 2;
+PLAYER_COLORS = getPlayerOrder();
+
 document.addEventListener('DOMContentLoaded', () => {
     initializePyramid();
     initializeUI();
@@ -47,6 +75,9 @@ function initializeUI() {
     const menuToggle = document.getElementById('menu-toggle');
     const sideMenu = document.getElementById('side-menu');
     const newGameBtn = document.getElementById('new-game-btn');
+    const playerCountBtn = document.getElementById('player-count-btn');
+    playerCountBtn.textContent = `Players: ${playerCount}`;
+    updatePlayerCountUI();
     const opponentBtn = document.getElementById('opponent-btn');
     const rulesBtn = document.getElementById('rules-btn');
     const closeRulesBtn = document.getElementById('close-rules-btn');
@@ -89,6 +120,14 @@ function initializeUI() {
         if (view2D) view2D.draw();
     });
 
+    playerCountBtn.addEventListener('click', () => {
+        playerCount = playerCount % 4 + 1;
+        if (playerCount < 2) playerCount = 2;
+        playerCountBtn.textContent = `Players: ${playerCount}`;
+        localStorage.setItem('pyramidPlayerCount', playerCount);
+        location.reload();
+    });
+
     opponentBtn.addEventListener('click', () => {
         isVsComputer = !isVsComputer;
         opponentBtn.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
@@ -117,7 +156,7 @@ function initializeUI() {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.code === 'Escape' || e.code === 'Space') {
+        if (e.code === 'Escape') {
             e.preventDefault();
             if (!rulesModal.classList.contains('hidden')) {
                 rulesModal.classList.add('hidden');
@@ -125,6 +164,15 @@ function initializeUI() {
                 isMenuOpen = false;
                 menuToggle.classList.remove('active');
                 sideMenu.classList.remove('open');
+            }
+        }
+        if (e.code === 'Space') {
+            e.preventDefault();
+            // Toggle menu
+            if (rulesModal.classList.contains('hidden')) {
+                isMenuOpen = !isMenuOpen;
+                menuToggle.classList.toggle('active', isMenuOpen);
+                sideMenu.classList.toggle('open', isMenuOpen);
             }
         }
     });
@@ -195,28 +243,27 @@ function initializeViews() {
 }
 
 function initializePyramid() {
+    LEVELS = getLevels();
     pyramid = [];
 
-    LEVELS.forEach(({ level, size }) => {
+    const highestPlayableLevel = LEVELS.filter(l => l.playableRim).pop().level;
+
+    LEVELS.forEach(({ level, size, playableRim }) => {
         const grid = Array(size).fill(0).map(() =>
             Array(size).fill(0).map(() => ({ piece: null, playable: false, victory: false }))
         );
 
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                if (level === 3) {
-                    grid[r][c].playable = true;
-                } else if (level === 2) {
+        if (playableRim) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
                     if (r === 0 || r === size - 1 || c === 0 || c === size - 1) {
                         grid[r][c].playable = true;
-                        if ((r === 0 && c === 0) || (r === 0 && c === 2) ||
-                            (r === 2 && c === 0) || (r === 2 && c === 2)) {
-                            grid[r][c].victory = true;
+                        if (level === highestPlayableLevel) {
+                            if ((r === 0 && c === 0) || (r === 0 && c === size - 1) ||
+                                (r === size - 1 && c === 0) || (r === size - 1 && c === size - 1)) {
+                                grid[r][c].victory = true;
+                            }
                         }
-                    }
-                } else {
-                    if (r === 0 || r === size - 1 || c === 0 || c === size - 1) {
-                        grid[r][c].playable = true;
                     }
                 }
             }
@@ -239,11 +286,32 @@ function initializePyramid() {
 }
 
 function placeStartingStones() {
-    for (let c = 0; c < 7; c++) {
-        pyramid[0][6][c].piece = 'white';
-    }
-    for (let c = 0; c < 7; c++) {
-        pyramid[0][0][c].piece = 'black';
+    if (playerCount <= 2) {
+        const groundLevel = 0;
+        const size = LEVELS[groundLevel].size;
+        for (let c = 0; c < 7; c++) {
+            pyramid[groundLevel][size - 1][c].piece = 'white';
+        }
+        for (let c = 0; c < 7; c++) {
+            pyramid[groundLevel][0][c].piece = 'black';
+        }
+    } else {
+        const groundLevel = 0;
+        const size = LEVELS[groundLevel].size;
+        for (let c = 1; c <= 7; c++) {
+            pyramid[groundLevel][size - 1][c].piece = 'white';
+        }
+        for (let c = 1; c <= 7; c++) {
+            pyramid[groundLevel][0][c].piece = 'black';
+        }
+        for (let r = 1; r <= 7; r++) {
+            pyramid[groundLevel][r][0].piece = 'red';
+        }
+        if (playerCount >= 4) {
+            for (let r = 1; r <= 7; r++) {
+                pyramid[groundLevel][r][size - 1].piece = 'blue';
+            }
+        }
     }
 }
 
@@ -251,84 +319,103 @@ function placeStartingStones() {
 // UI UPDATES
 // ============================================
 
+function updatePlayerCountUI() {
+    const redContainer = document.querySelector('.red-container');
+    const blueContainer = document.querySelector('.blue-container');
+    
+    if (redContainer) {
+        redContainer.style.display = playerCount >= 3 ? 'flex' : 'none';
+    }
+    if (blueContainer) {
+        blueContainer.style.display = playerCount >= 4 ? 'flex' : 'none';
+    }
+}
+
 function updateUI() {
+    updatePlayerCountUI();
+    
     const playerIndicator = document.getElementById('player-indicator');
     const playerName = document.getElementById('player-name');
     const whiteCount = document.getElementById('white-count');
     const blackCount = document.getElementById('black-count');
+    const redCount = document.getElementById('red-count');
+    const blueCount = document.getElementById('blue-count');
     const topCount = document.getElementById('top-count');
 
     if (playerIndicator && playerName) {
         playerIndicator.className = 'player-indicator ' + currentPlayer;
         if (gameState !== 'GAME_OVER') {
-            playerName.textContent = currentPlayer === 'white' ? "White's Turn" : "Black's Turn";
+            playerName.textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1) + "'s Turn";
         }
     }
 
-    let white = 0, black = 0, victory = 0;
+    const counts = { white: 0, black: 0, red: 0, blue: 0 };
+    let victory = 0;
+    
     pyramid.forEach((grid, level) => {
         grid.forEach(row => {
             row.forEach(cell => {
-                if (cell.piece === 'white') {
-                    white++;
-                    if (cell.victory) victory++;
-                }
-                if (cell.piece === 'black') {
-                    black++;
+                if (counts.hasOwnProperty(cell.piece)) {
+                    counts[cell.piece]++;
                     if (cell.victory) victory++;
                 }
             });
         });
     });
 
-    if (whiteCount) whiteCount.textContent = white;
-    if (blackCount) blackCount.textContent = black;
+    if (whiteCount) whiteCount.textContent = counts.white;
+    if (blackCount) blackCount.textContent = counts.black;
+    if (redCount) redCount.textContent = counts.red;
+    if (blueCount) blueCount.textContent = counts.blue;
     if (topCount) topCount.textContent = victory + '/4';
 
-    checkWinConditions(white, black, victory);
+    checkWinConditions(counts, victory);
 }
 
-function checkWinConditions(whiteCount, blackCount, victoryStones) {
-    // Check victory fields - need all 4 to be occupied by same color
-    let whiteVictory = 0;
-    let blackVictory = 0;
+function checkWinConditions(counts, victoryStones) {
+    const highestPlayableLevel = LEVELS.filter(l => l.playableRim).pop().level;
+    const victoryLevel = highestPlayableLevel;
+    const victorySize = LEVELS[victoryLevel].size;
     
-    // Victory fields are on level 2 (3x3), at corners: (0,0), (0,2), (2,0), (2,2)
     const victoryPositions = [
-        { level: 2, row: 0, col: 0 },
-        { level: 2, row: 0, col: 2 },
-        { level: 2, row: 2, col: 0 },
-        { level: 2, row: 2, col: 2 }
+        { level: victoryLevel, row: 0, col: 0 },
+        { level: victoryLevel, row: 0, col: victorySize - 1 },
+        { level: victoryLevel, row: victorySize - 1, col: 0 },
+        { level: victoryLevel, row: victorySize - 1, col: victorySize - 1 }
     ];
+    
+    const victoryByColor = { white: 0, black: 0, red: 0, blue: 0 };
     
     victoryPositions.forEach(pos => {
         const piece = pyramid[pos.level]?.[pos.row]?.[pos.col]?.piece;
-        if (piece === 'white') whiteVictory++;
-        if (piece === 'black') blackVictory++;
+        if (victoryByColor.hasOwnProperty(piece)) {
+            victoryByColor[piece]++;
+        }
     });
     
-    // Win if all 4 victory fields are owned by same color
-    if (whiteVictory === 4) {
-        gameState = 'GAME_OVER';
-        showGameOver('White Wins!', 'White controls all victory fields!');
-        return;
-    }
-    if (blackVictory === 4) {
-        gameState = 'GAME_OVER';
-        showGameOver('Black Wins!', 'Black controls all victory fields!');
-        return;
+    for (let i = 0; i < playerCount; i++) {
+        const color = PLAYER_COLORS[i];
+        if (victoryByColor[color] === 4) {
+            gameState = 'GAME_OVER';
+            showGameOver(color.charAt(0).toUpperCase() + color.slice(1) + ' Wins!', 
+                color.charAt(0).toUpperCase() + color.slice(1) + ' controls all victory fields!');
+            return;
+        }
     }
     
-    // Otherwise check stone counts
-    if (whiteCount < 4 && blackCount < 4) {
+    const activePlayers = PLAYER_COLORS.slice(0, playerCount);
+    const playersBelowFour = activePlayers.filter(color => counts[color] < 4);
+    
+    if (playersBelowFour.length === playerCount) {
         gameState = 'GAME_OVER';
-        showGameOver('Draw!', 'Both players have fewer than 4 stones.');
-    } else if (whiteCount < 4) {
-        gameState = 'GAME_OVER';
-        showGameOver('Black Wins!', 'White has fewer than 4 stones.');
-    } else if (blackCount < 4) {
-        gameState = 'GAME_OVER';
-        showGameOver('White Wins!', 'Black has fewer than 4 stones.');
+        showGameOver('Draw!', 'All players have fewer than 4 stones.');
+    } else if (playersBelowFour.length === playerCount - 1) {
+        const winner = activePlayers.find(c => !playersBelowFour.includes(c));
+        if (winner) {
+            gameState = 'GAME_OVER';
+            showGameOver(winner.charAt(0).toUpperCase() + winner.slice(1) + ' Wins!', 
+                playersBelowFour[0].charAt(0).toUpperCase() + playersBelowFour[0].slice(1) + ' has fewer than 4 stones.');
+        }
     }
 }
 
@@ -360,12 +447,15 @@ function isPlayable(level, row, col) {
     if (level < 0 || level >= pyramid.length) return false;
     const grid = pyramid[level];
     if (row < 0 || row >= grid.length || col < 0 || col >= grid[0].length) return false;
+    // Top level (single cell) is always accessible via jump
+    if (LEVELS[level].size === 1) return true;
     return grid[row][col].playable;
 }
 
 function calculateRunMoves(level, row, col) {
     const moves = [];
     const directions = [{ dr: -1, dc: 0 }, { dr: 1, dc: 0 }, { dr: 0, dc: -1 }, { dr: 0, dc: 1 }];
+    const baseSize = LEVELS[0].size;
 
     directions.forEach(({ dr, dc }) => {
         let currentLevel = level;
@@ -380,8 +470,8 @@ function calculateRunMoves(level, row, col) {
             if (!isPlayable(currentLevel, nextR, nextC)) {
                 if (currentLevel > 0) {
                     nextLevel = currentLevel - 1;
-                    const currentOffset = (7 - LEVELS[currentLevel].size) / 2;
-                    const nextOffset = (7 - LEVELS[nextLevel].size) / 2;
+                    const currentOffset = (baseSize - LEVELS[currentLevel].size) / 2;
+                    const nextOffset = (baseSize - LEVELS[nextLevel].size) / 2;
                     const globalR = r + currentOffset;
                     const globalC = c + currentOffset;
                     const targetGlobalR = globalR + dr;
@@ -416,7 +506,8 @@ function calculateRunMoves(level, row, col) {
 
 function calculateJumpMoves(level, row, col) {
     const moves = [];
-    if (level >= 3) return moves;
+    const highestLevel = LEVELS.length - 1;
+    if (level >= highestLevel) return moves;
 
     const upperLevel = level + 1;
     const upperSize = LEVELS[upperLevel].size;
@@ -494,9 +585,23 @@ function calculatePushMoves(level, row, col) {
 }
 
 function handleCellClick(level, row, col) {
+    // Block if game over, animating, or move in progress
     if (gameState === 'GAME_OVER') return;
+    if (animatedStones.size > 0) return;
+    if (isMoveInProgress) return;
+    
+    // In 2-player vs computer, only human color can click
+    if (playerCount === 2 && isVsComputer && currentPlayer !== 'white') return;
 
     const cellData = pyramid[level][row][col];
+
+    // In SELECT_STONE state, only allow clicking own stones
+    // In SELECT_MOVE state, allow clicking valid move destinations (even opponent stones)
+    if (gameState === 'SELECT_STONE') {
+        if (cellData.piece && cellData.piece !== currentPlayer) {
+            return;
+        }
+    }
 
     if (gameState === 'SELECT_STONE') {
         if (cellData.piece === currentPlayer) {
@@ -560,6 +665,8 @@ function handleCellClick(level, row, col) {
 }
 
 function executeMove(move) {
+    isMoveInProgress = true; // Block input while processing move
+    
     const fromPiece = pyramid[selectedStone.level][selectedStone.row][selectedStone.col].piece;
     const fromKey = `${selectedStone.level},${selectedStone.row},${selectedStone.col}`;
     const toKey = `${move.level},${move.row},${move.col}`;
@@ -583,36 +690,27 @@ function executeMove(move) {
     if (is3DMode && view3D && animatedStones.size === 0) {
         const stoneForAnimation = selectedStone;
         
-        // Handle different move types
         if (move.type === 'push') {
             const pushedKey = `${move.level},${move.row},${move.col}`;
             const pushedMesh = view3D.stoneMeshes.get(pushedKey);
             
             if (pushedMesh) {
-                // First animate the pushed stone to its destination (give it time to be seen first)
                 view3D.animateStone(pushedKey, `${move.pushTo.level},${move.pushTo.row},${move.pushTo.col}`, move, () => {
-                    // After pushed stone arrives, wait a tiny bit then animate the main stone
                     setTimeout(() => {
                         view3D.animateStone(fromKey, toKey, move, () => {
-                            // Both animations done - now perform the game logic
                             selectedStone = stoneForAnimation;
                             performMoveLogic(move, fromPiece);
                         });
                     }, 100);
                 });
             } else {
-                // No pushed mesh found - just do logic
                 performMoveLogic(move, fromPiece);
             }
-            
         } else if (move.type === 'smash') {
-            // Smash: animate main stone, then remove smashed stone after
             view3D.animateStone(fromKey, toKey, move, () => {
                 selectedStone = stoneForAnimation;
                 performMoveLogic(move, fromPiece);
             });
-            
-            // Also animate/remove the smashed stone
             const smashedKey = `${move.level},${move.row},${move.col}`;
             const smashedMesh = view3D.stoneMeshes.get(smashedKey);
             if (smashedMesh) {
@@ -621,14 +719,11 @@ function executeMove(move) {
                     view3D.stoneMeshes.delete(smashedKey);
                 }, 350);
             }
-            
         } else if (move.type === 'push-fall') {
-            // Push fall: animate main stone, remove pushed stone
             view3D.animateStone(fromKey, toKey, move, () => {
                 selectedStone = stoneForAnimation;
                 performMoveLogic(move, fromPiece);
             });
-            
             const pushedKey = `${move.level},${move.row},${move.col}`;
             const pushedMesh = view3D.stoneMeshes.get(pushedKey);
             if (pushedMesh) {
@@ -637,16 +732,13 @@ function executeMove(move) {
                     view3D.stoneMeshes.delete(pushedKey);
                 }, 350);
             }
-            
         } else {
-            // Normal move (run/jump) - just animate and do logic
             view3D.animateStone(fromKey, toKey, move, () => {
                 selectedStone = stoneForAnimation;
                 performMoveLogic(move, fromPiece);
             });
         }
     } else {
-        // No animation - just do logic
         performMoveLogic(move, fromPiece);
     }
 }
@@ -693,7 +785,6 @@ function performMoveLogic(move, fromPiece) {
 }
 
 function checkAndRemoveOsiris() {
-    const opponent = currentPlayer === 'white' ? 'black' : 'white';
     let stonesToRemove = [];
 
     LEVELS.forEach(({ level, size }) => {
@@ -714,8 +805,9 @@ function checkAndRemoveOsiris() {
 
         for (let r = 0; r < size; r++) {
             const rowPieces = grid[r].map(cell => cell.piece);
-            stonesToRemove.push(...checkLine(rowPieces, gridMap[r], currentPlayer, opponent));
-            stonesToRemove.push(...checkLine(rowPieces, gridMap[r], opponent, currentPlayer));
+            PLAYER_COLORS.slice(0, playerCount).forEach(color => {
+                stonesToRemove.push(...checkLine(rowPieces, gridMap[r], color));
+            });
         }
 
         for (let c = 0; c < size; c++) {
@@ -725,8 +817,9 @@ function checkAndRemoveOsiris() {
                 colPieces.push(grid[r][c].piece);
                 colMap.push(gridMap[r][c]);
             }
-            stonesToRemove.push(...checkLine(colPieces, colMap, currentPlayer, opponent));
-            stonesToRemove.push(...checkLine(colPieces, colMap, opponent, currentPlayer));
+            PLAYER_COLORS.slice(0, playerCount).forEach(color => {
+                stonesToRemove.push(...checkLine(colPieces, colMap, color));
+            });
         }
     });
 
@@ -734,6 +827,7 @@ function checkAndRemoveOsiris() {
         const uniqueStones = [];
         const seen = new Set();
         stonesToRemove.forEach(s => {
+            if (!s) return; // Skip null entries
             const key = `${s.level},${s.row},${s.col}`;
             if (!seen.has(key)) {
                 seen.add(key);
@@ -741,7 +835,9 @@ function checkAndRemoveOsiris() {
             }
         });
 
-        showMessage(`Osiris! ${uniqueStones.length} stones captured!`);
+        if (uniqueStones.length > 0) {
+            showMessage(`Osiris! ${uniqueStones.length} stones captured!`);
+        }
         
         // Trigger Osiris animation in 3D
         if (view3D && is3DMode) {
@@ -784,27 +880,27 @@ function checkAndRemoveOsiris() {
     }
 }
 
-function checkLine(line, map, player, opponent) {
+function checkLine(line, map, attackerColor) {
     const captured = [];
-    const playerIndices = [];
+    const attackerIndices = [];
     line.forEach((p, i) => {
-        if (p === player) playerIndices.push(i);
+        if (p === attackerColor) attackerIndices.push(i);
     });
 
-    for (let i = 0; i < playerIndices.length - 1; i++) {
-        const start = playerIndices[i];
-        const end = playerIndices[i + 1];
+    for (let i = 0; i < attackerIndices.length - 1; i++) {
+        const start = attackerIndices[i];
+        const end = attackerIndices[i + 1];
 
         if (end > start + 1) {
-            let allOpponent = true;
+            let allDifferent = true;
             for (let k = start + 1; k < end; k++) {
-                if (line[k] !== opponent) {
-                    allOpponent = false;
+                if (line[k] === attackerColor) {
+                    allDifferent = false;
                     break;
                 }
             }
 
-            if (allOpponent) {
+            if (allDifferent) {
                 for (let k = start + 1; k < end; k++) {
                     captured.push(map[k]);
                 }
@@ -817,7 +913,12 @@ function checkLine(line, map, player, opponent) {
 function endTurn() {
     selectedStone = null;
     validMoves = [];
-    currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+    
+    // Move to next player
+    const currentIndex = PLAYER_COLORS.indexOf(currentPlayer);
+    const nextIndex = (currentIndex + 1) % playerCount;
+    currentPlayer = PLAYER_COLORS[nextIndex];
+    
     gameState = 'SELECT_STONE';
     updateUI();
 
@@ -829,8 +930,16 @@ function endTurn() {
         view2D.draw();
     }
 
-    if (gameState !== 'GAME_OVER' && isVsComputer && currentPlayer === 'black') {
-        setTimeout(makeAIMove, 600);
+    // AI only in multiplayer when vsComputer is on
+    const isAITurn = (playerCount > 2 && isVsComputer && currentPlayer !== 'white') || 
+                     (playerCount === 2 && isVsComputer && currentPlayer === 'black');
+    
+    if (isAITurn) {
+        setTimeout(() => {
+            makeAIMove();
+        }, 500);
+    } else {
+        isMoveInProgress = false;
     }
 }
 
@@ -839,14 +948,15 @@ function endTurn() {
 // ============================================
 
 function makeAIMove() {
-    if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
-
+    if (gameState === 'GAME_OVER') return;
+    if (currentPlayer === 'white') return;
+    
     let allPossibleMoves = [];
 
     pyramid.forEach((grid, level) => {
         grid.forEach((row, r) => {
             row.forEach((cell, c) => {
-                if (cell.piece === 'black') {
+                if (cell.piece === currentPlayer) {
                     const runMoves = calculateRunMoves(level, r, c);
                     const jumpMoves = calculateJumpMoves(level, r, c);
                     const pushMoves = calculatePushMoves(level, r, c);
@@ -865,7 +975,7 @@ function makeAIMove() {
 
     if (allPossibleMoves.length === 0) {
         gameState = 'GAME_OVER';
-        showGameOver('White Wins!', 'Black has no legal moves.');
+        showGameOver('White Wins!', currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1) + ' has no legal moves.');
         return;
     }
 
@@ -875,33 +985,35 @@ function makeAIMove() {
     allPossibleMoves.forEach(action => {
         let score = 0;
         const { stone, move } = action;
+        const highestPlayableLevel = LEVELS.filter(l => l.playableRim).pop().level;
+        const opponentColors = PLAYER_COLORS.filter(c => c !== currentPlayer);
 
         if (move.type === 'smash') {
             const smashedPiece = pyramid[move.level][move.row][move.col].piece;
-            if (smashedPiece === 'white') score += 150;
-            else if (smashedPiece === 'black') score -= 500;
+            if (opponentColors.includes(smashedPiece)) score += 150;
+            else if (smashedPiece === currentPlayer) score -= 500;
         }
 
         if (move.type === 'push-fall') {
             const pushedPiece = pyramid[move.level][move.row][move.col].piece;
-            if (pushedPiece === 'white') score += 150;
-            else if (pushedPiece === 'black') score -= 500;
+            if (opponentColors.includes(pushedPiece)) score += 150;
+            else if (pushedPiece === currentPlayer) score -= 500;
         } else if (move.type === 'push') {
             const pushedPiece = pyramid[move.level][move.row][move.col].piece;
             const targetPiece = pyramid[move.pushTo.level][move.pushTo.row][move.pushTo.col].piece;
 
-            if (pushedPiece === 'white') {
+            if (opponentColors.includes(pushedPiece)) {
                 score += 30;
-                if (move.pushTo.level < move.level && targetPiece === 'black') score -= 400;
-                else if (move.pushTo.level < move.level && targetPiece === 'white') score += 100;
-            } else if (pushedPiece === 'black') {
+                if (move.pushTo.level < move.level && opponentColors.includes(targetPiece)) score -= 400;
+                else if (move.pushTo.level < move.level && targetPiece === currentPlayer) score += 100;
+            } else if (pushedPiece === currentPlayer) {
                 score -= 60;
-                if (move.pushTo.level < move.level && targetPiece === 'black') score -= 500;
-                else if (move.pushTo.level < move.level && targetPiece === 'white') score -= 100;
+                if (move.pushTo.level < move.level && opponentColors.includes(targetPiece)) score -= 500;
+                else if (move.pushTo.level < move.level && targetPiece === currentPlayer) score -= 100;
             }
         }
 
-        if (move.level === 3) {
+        if (move.level === highestPlayableLevel + 1) {
             score += 10000;
         } else if (move.level > stone.level || move.type === 'jump') {
             score += 40 * move.level;
@@ -909,15 +1021,16 @@ function makeAIMove() {
             score -= 20;
         }
 
-        if (move.level < 2) {
+        if (move.level < highestPlayableLevel) {
             const center = LEVELS[move.level].size / 2 - 0.5;
             const dist = Math.abs(move.row - center) + Math.abs(move.col - center);
             score += (5 - dist) * 2;
         }
 
-        if (move.level === 2) {
-            if ((move.row === 0 && move.col === 0) || (move.row === 0 && move.col === 2) ||
-                (move.row === 2 && move.col === 0) || (move.row === 2 && move.col === 2)) {
+        if (move.level === highestPlayableLevel) {
+            const victorySize = LEVELS[highestPlayableLevel].size;
+            if ((move.row === 0 && move.col === 0) || (move.row === 0 && move.col === victorySize - 1) ||
+                (move.row === victorySize - 1 && move.col === 0) || (move.row === victorySize - 1 && move.col === victorySize - 1)) {
                 score += 1000;
             }
         }
@@ -987,6 +1100,7 @@ class PyramidView3D {
         if (typeof THREE.OrbitControls !== 'undefined') {
             this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
+            this.controls.enablePan = false; // Disable panning - only rotate and zoom
             this.controls.target.set(0, 1.0, 0);
             this.controls.minDistance = 8;
             this.controls.maxDistance = 45;
@@ -1164,12 +1278,13 @@ class PyramidView3D {
                     this.scene.add(cellMesh);
                     this.cellMeshes.set(`${level},${r},${c}`, cellMesh);
 
-                    // Add victory field indicator (blue circle on level 2 corners)
-                    // Level 2 (3x3) has victory on the 4 corners: (0,0), (0,2), (2,0), (2,2)
-                    const isVictory = (level === 2 && r === 0 && c === 0) ||
-                                      (level === 2 && r === 0 && c === 2) ||
-                                      (level === 2 && r === 2 && c === 0) ||
-                                      (level === 2 && r === 2 && c === 2);
+                    // Add victory field indicator on the highest playable level corners
+                    const highestPlayableLevel = LEVELS.filter(l => l.playableRim).pop().level;
+                    const victorySize = LEVELS[highestPlayableLevel].size;
+                    const isVictory = (level === highestPlayableLevel && r === 0 && c === 0) ||
+                                      (level === highestPlayableLevel && r === 0 && c === victorySize - 1) ||
+                                      (level === highestPlayableLevel && r === victorySize - 1 && c === 0) ||
+                                      (level === highestPlayableLevel && r === victorySize - 1 && c === victorySize - 1);
                     
                     if (isVictory) {
                         const ringGeo = new THREE.RingGeometry(0.28, 0.42, 24);
@@ -1242,9 +1357,18 @@ class PyramidView3D {
     createStoneMesh(color) {
         const group = new THREE.Group();
         
+        let stoneColor;
+        switch(color) {
+            case 'white': stoneColor = 0xf8f8f8; break;
+            case 'black': stoneColor = 0x2a2a2a; break;
+            case 'red': stoneColor = 0xcc3333; break;
+            case 'blue': stoneColor = 0x3366cc; break;
+            default: stoneColor = 0xf8f8f8;
+        }
+        
         const bodyGeo = new THREE.CylinderGeometry(0.32, 0.36, 0.45, 24);
         const bodyMat = new THREE.MeshStandardMaterial({
-            color: color === 'white' ? 0xf8f8f8 : 0x2a2a2a,
+            color: stoneColor,
             roughness: 0.25,
             metalness: 0.3,
             envMapIntensity: 0.5
@@ -1734,12 +1858,21 @@ class PyramidView2D {
                             const x = pos.x + (pos.size - stoneSize) / 2;
                             const y = pos.y + (pos.size - stoneSize) / 2;
                             
-                            ctx.fillStyle = cell.piece === 'white' ? '#ffffff' : '#1a1a1a';
+                            let stoneColor;
+                            switch(cell.piece) {
+                                case 'white': stoneColor = '#ffffff'; break;
+                                case 'black': stoneColor = '#1a1a1a'; break;
+                                case 'red': stoneColor = '#cc3333'; break;
+                                case 'blue': stoneColor = '#3366cc'; break;
+                                default: stoneColor = '#ffffff';
+                            }
+                            
+                            ctx.fillStyle = stoneColor;
                             ctx.beginPath();
                             ctx.arc(x + stoneSize/2, y + stoneSize/2, stoneSize/2, 0, Math.PI * 2);
                             ctx.fill();
                             
-                            ctx.strokeStyle = cell.piece === 'white' ? '#999' : '#444';
+                            ctx.strokeStyle = cell.piece === 'white' ? '#999' : (cell.piece === 'red' || cell.piece === 'blue' ? '#ffffff' : '#444');
                             ctx.lineWidth = 1;
                             ctx.stroke();
                         }

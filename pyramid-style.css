@@ -14,6 +14,8 @@
     --gold: #C5A059;
     --white-stone: #ffffff;
     --black-stone: #1a1a1a;
+    --red-stone: #cc3333;
+    --blue-stone: #3366cc;
     --deadly-indicator: #000000;
     --normal-indicator: #88ccff;
     --menu-width: 320px;
@@ -256,6 +258,14 @@ html, body {
     background: var(--black-stone);
 }
 
+.player-indicator.red {
+    background: var(--red-stone);
+}
+
+.player-indicator.blue {
+    background: var(--blue-stone);
+}
+
 #player-name {
     font-family: 'Cinzel', serif;
     font-size: 1.1rem;
@@ -291,6 +301,14 @@ html, body {
 
 .count-stone.black {
     background: var(--black-stone);
+}
+
+.count-stone.red {
+    background: var(--red-stone);
+}
+
+.count-stone.blue {
+    background: var(--blue-stone);
 }
 
 .count-item.victory {
