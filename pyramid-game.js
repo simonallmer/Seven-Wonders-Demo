@@ -322,12 +322,17 @@ function placeStartingStones() {
 function updatePlayerCountUI() {
     const redContainer = document.querySelector('.red-container');
     const blueContainer = document.querySelector('.blue-container');
+    const sideMenu = document.getElementById('side-menu');
     
     if (redContainer) {
         redContainer.style.display = playerCount >= 3 ? 'flex' : 'none';
     }
     if (blueContainer) {
         blueContainer.style.display = playerCount >= 4 ? 'flex' : 'none';
+    }
+    
+    if (sideMenu) {
+        sideMenu.classList.toggle('four-players', playerCount >= 4);
     }
 }
 

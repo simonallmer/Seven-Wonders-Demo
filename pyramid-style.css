@@ -203,11 +203,11 @@ html, body {
     transform: translateX(100%);
     transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
     backdrop-filter: blur(20px);
-    overflow-y: auto;
 }
 
 .side-menu.open {
     transform: translateX(0);
+    overflow-y: auto;
 }
 
 .menu-content {
@@ -605,4 +605,35 @@ html, body {
     .menu-content {
         padding: 70px 18px 30px;
     }
+}
+
+/* 4 Player Mode - Smaller fonts */
+.side-menu.four-players .game-title {
+    font-size: 1.4rem;
+}
+
+.side-menu.four-players .menu-btn {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+}
+
+.side-menu.four-players .player-info {
+    margin-bottom: 8px;
+}
+
+.side-menu.four-players .current-player-display {
+    font-size: 0.9rem;
+}
+
+.side-menu.four-players .stone-counts-display {
+    gap: 8px;
+}
+
+.side-menu.four-players .count-item {
+    font-size: 0.8rem;
+}
+
+.side-menu.four-players .count-stone {
+    width: 18px;
+    height: 18px;
 }
