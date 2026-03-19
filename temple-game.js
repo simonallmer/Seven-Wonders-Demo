@@ -43,8 +43,6 @@ let aiConsecutiveMoveCount = 0;
 // DOM ELEMENTS
 // ============================================
 const svg = document.getElementById('game-board');
-const statusElement = document.getElementById('game-status');
-const playerColorElement = document.getElementById('current-player-color');
 const messageBox = document.getElementById('message-box');
 const resetButton = document.getElementById('reset-button');
 const opponentButton = document.getElementById('opponent-btn');
@@ -103,7 +101,7 @@ function initializeBoard() {
     leapChainStart = null;
 
     drawBoard();
-    updateStatus();
+    if (window.is3DView && window.rebuild3DBoard) window.rebuild3DBoard();
     updateStatus();
     hideMessage();
     hideGameOverModal();
@@ -449,6 +447,7 @@ function drawBoard() {
     svg.appendChild(linesGroup);
     svg.appendChild(nodesGroup);
     svg.appendChild(stonesGroup);
+    if (window.is3DView && window.update3DViews) window.update3DViews();
 }
 
 function updateStatus(message = null) {
@@ -474,14 +473,11 @@ function updateStatus(message = null) {
 }
 
 function showMessage(text) {
-    messageBox.textContent = text;
-    messageBox.classList.remove('hidden');
-    clearTimeout(window.messageTimeout);
-    window.messageTimeout = setTimeout(hideMessage, 4000);
+    // Disabled as per user request to remove text spam
 }
 
 function hideMessage() {
-    messageBox.classList.add('hidden');
+    // Disabled
 }
 
 function updateUI() {
@@ -686,7 +682,7 @@ function handleNodeClick(row, col) {
             validMoves = [...walkMoves, ...leapMoves];
 
             if (validMoves.length === 0) {
-                showMessage("This stone has no valid moves. Select another stone.");
+                // Self-evident to player, no prompt needed.
                 selectedStone = null;
                 return;
             }
@@ -701,21 +697,36 @@ function handleNodeClick(row, col) {
 
         if (move) {
             executeMove(move);
-        } else if (node.piece === currentPlayer && !isInLeapChain) {
-            // Reselect different stone
-            selectedStone = { row, col };
-            const walkMoves = calculateWalkMoves(row, col);
-            const leapMoves = calculateLeapMoves(row, col);
-            validMoves = [...walkMoves, ...leapMoves];
+        } else if (node.piece === currentPlayer) {
+            if (isInLeapChain) {
+                if (selectedStone && selectedStone.row === row && selectedStone.col === col) {
+                    endTurn();
+                }
+            } else {
+                if (selectedStone && selectedStone.row === row && selectedStone.col === col) {
+                    // Deselect
+                    selectedStone = null;
+                    validMoves = [];
+                    gameState = 'SELECT_STONE';
+                } else {
+                    // Reselect different stone
+                    selectedStone = { row, col };
+                    const walkMoves = calculateWalkMoves(row, col);
+                    const leapMoves = calculateLeapMoves(row, col);
+                    validMoves = [...walkMoves, ...leapMoves];
 
-            if (validMoves.length === 0) {
-                showMessage("This stone has no valid moves. Select another stone.");
-                selectedStone = null;
-                gameState = 'SELECT_STONE';
+                    if (validMoves.length === 0) {
+                        selectedStone = null;
+                        gameState = 'SELECT_STONE';
+                        updateBoardDisplay();
+                        return;
+                    }
+                }
+
+                drawBoard();
+                updateStatus();
+                if (window.is3DView && window.update3DHighlights) window.update3DHighlights();
             }
-
-            drawBoard();
-            updateStatus();
         }
     }
 }
@@ -732,6 +743,11 @@ function handleLeapOfFaith(move) {
     // Remove both stones (the leaping stone and the captured stone)
     const leapingPlayer = fromNode.piece;
     const capturedPlayer = overNode.piece;
+    
+    if (window.is3DView && window.animate3DMove) {
+        window.animate3DMove(selectedStone.row, selectedStone.col, move.row, move.col);
+    }
+    
     fromNode.piece = null;
     overNode.piece = null;
 
@@ -764,6 +780,10 @@ function executeMove(move) {
     } else if (currentPlayer === 'black' && isInLeapChain) {
         // Just update location during chain
         aiLastMovedStone = { row: move.row, col: move.col };
+    }
+
+    if (window.is3DView && window.animate3DMove) {
+        window.animate3DMove(selectedStone.row, selectedStone.col, move.row, move.col);
     }
 
     // Move the stone
@@ -865,6 +885,7 @@ function endTurn() {
     gameState = 'SELECT_STONE';
     moveHistory = [];
     drawBoard();
+    if (window.is3DView && window.sync3D) window.sync3D(true);
     updateStatus();
     updateUI();
 
@@ -903,7 +924,7 @@ function makeAIMove() {
     }
 
     if (possibleMoves.length === 0) {
-        showMessage("Black has no valid moves.");
+        // No moves for Black, silently end.
         endTurn();
         return;
     }
@@ -970,16 +991,69 @@ function makeAIMove() {
 // ============================================
 
 resetButton.addEventListener('click', initializeBoard);
-cancelButton.addEventListener('click', cancelMove);
+const cancelBtn = document.getElementById('cancel-button');
+if (cancelBtn) cancelBtn.addEventListener('click', cancelMove);
+
 let _opponentBtnTimeout = null;
-opponentButton.addEventListener('click', () => {
-    // Computer mode is coming soon — revert immediately after showing the message
-    clearTimeout(_opponentBtnTimeout);
-    isVsComputer = false;
-    opponentButton.textContent = 'Computer Coming Soon';
-    _opponentBtnTimeout = setTimeout(() => {
-        opponentButton.textContent = 'Opponent: Human';
-    }, 1500);
+const opponentButtonEl = document.getElementById('opponent-btn');
+if (opponentButtonEl) {
+    opponentButtonEl.addEventListener('click', () => {
+        // Computer mode is coming soon — revert immediately after showing the message
+        clearTimeout(_opponentBtnTimeout);
+        isVsComputer = false;
+        opponentButtonEl.textContent = 'Computer Coming Soon';
+        _opponentBtnTimeout = setTimeout(() => {
+            opponentButtonEl.textContent = 'Opponent: Human';
+        }, 1500);
+    });
+}
+
+let _playersBtnTimeout = null;
+const playersBtn = document.getElementById('players-btn');
+if (playersBtn) {
+    playersBtn.addEventListener('click', () => {
+        clearTimeout(_playersBtnTimeout);
+        playersBtn.textContent = 'Coming Soon';
+        _playersBtnTimeout = setTimeout(() => {
+            playersBtn.textContent = 'Players (3,4, coming soon)';
+        }, 1500);
+    });
+}
+
+// Menu Toggle Logic
+function toggleMenu() {
+    const trigger = document.getElementById('menu-trigger');
+    const header = document.getElementById('main-header');
+    const hud = document.getElementById('hud');
+    if (trigger) trigger.classList.toggle('active');
+    if (header) header.classList.toggle('visible');
+    if (hud) hud.classList.toggle('visible');
+}
+const menuTriggerBtn = document.getElementById('menu-trigger');
+if (menuTriggerBtn) menuTriggerBtn.addEventListener('click', toggleMenu);
+
+const closeHudBtn = document.getElementById('close-hud-btn');
+if (closeHudBtn) closeHudBtn.addEventListener('click', toggleMenu);
+
+document.addEventListener('keydown', (e) => {
+    if (e.target !== document.body) return;
+
+    // Space → open/close menu
+    if (e.code === 'Space') {
+        e.preventDefault();
+        toggleMenu();
+    }
+
+    // Shift → toggle 2D / 3D view
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        if (window.is3DView) {
+            const btn2d = document.getElementById('btn-view-2d');
+            if (btn2d) btn2d.click();
+        } else {
+            const btn3d = document.getElementById('btn-view-3d');
+            if (btn3d) btn3d.click();
+        }
+    }
 });
 
 

@@ -1,0 +1,764 @@
+// ============================================
+// TEMPLE GAME 3D VIEW
+// ============================================
+
+let scene, camera, renderer, controls;
+let raycaster, mouse;
+window.is3DView = false;
+
+// Groups
+const groupTemple = new THREE.Group();
+const groupBoard = new THREE.Group();
+const groupPieces = new THREE.Group();
+const groupConnections = new THREE.Group();
+const groupHighlights = new THREE.Group();
+
+// Maps for easy access
+const stoneMeshes = new Map();
+const fieldMeshes = new Map();
+
+// Materials
+const matMarbleBase = new THREE.MeshStandardMaterial({ color: 0xeae6df, roughness: 0.8, metalness: 0.1 });
+const matPillar = new THREE.MeshStandardMaterial({ color: 0xf5f1e8, roughness: 0.7, metalness: 0.1 });
+const matField = new THREE.MeshStandardMaterial({ color: 0xd4cfc4, roughness: 0.6, metalness: 0.2 });
+const matArtemis = new THREE.MeshStandardMaterial({ color: 0xc4b5fd, roughness: 0.4, metalness: 0.2, emissive: 0x4c1d95, emissiveIntensity: 0.5 });
+const matWhitePiece = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 });
+const matBlackPiece = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.3 });
+const matHighlight = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.5, depthTest: false });
+const matSelection = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.6, depthTest: false });
+
+// Initialize 3D Engine
+function init3D() {
+    const container = document.getElementById('canvas3d');
+
+    // Scene setup
+    scene = new THREE.Scene();
+    // Sky color inspired by majestic atmosphere
+    scene.background = new THREE.Color(0xfde0ad); // Warm sunrise/sunset
+    scene.fog = new THREE.FogExp2(0xfde0ad, 0.002);
+
+    // Camera setup
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
+    // Position camera to look at the temple from an angle
+    camera.position.set(0, 180, 250);
+
+    // Renderer setup
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // Controls
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 50;
+    controls.maxDistance = 600;
+    controls.maxPolarAngle = Math.PI / 2 - 0.05; // Don't go below ground
+
+    // Lighting
+    const hemiLight = new THREE.HemisphereLight(0xfff2e0, 0x4a5d23, 0.4);
+    hemiLight.position.set(0, 200, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffdfa0, 1.2);
+    dirLight.position.set(150, 80, -100);
+    dirLight.castShadow = true;
+    dirLight.shadow.camera.top = 150;
+    dirLight.shadow.camera.bottom = -150;
+    dirLight.shadow.camera.left = -150;
+    dirLight.shadow.camera.right = 150;
+    dirLight.shadow.camera.near = 0.1;
+    dirLight.shadow.camera.far = 1000;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    scene.add(dirLight);
+
+    const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    backLight.position.set(-100, 150, -100);
+    scene.add(backLight);
+
+    // Construct Temple Environment
+    buildTempleEnvironment();
+
+    // Resize handler
+    window.addEventListener('resize', onWindowResize);
+
+    // Raycaster for interaction (use window to capture clicks correctly)
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+    window.addEventListener('pointerdown', onPointerDown);
+
+    // Animation loop
+    renderer.setAnimationLoop(animate3D);
+
+    // Build the fields from the 2D board data
+    build3DBoard();
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// Convert 2D SVG coords to 3D coords
+function get3DCoord(svgX, svgY) {
+    // 2D center is approx (50, 57) based on the board data.
+    // SVG X: 24 to 76 (center 50)
+    // SVG Y: 5 to 109 (center 57)
+    const scale = 1.8;
+    const x3d = (svgX - 50) * scale;
+    const z3d = (svgY - 57) * scale;
+    return { x: x3d, z: z3d };
+}
+
+function buildTempleEnvironment() {
+    // Group hierarchy
+    scene.add(groupTemple);
+    groupTemple.add(groupBoard);
+    scene.add(groupPieces);
+    scene.add(groupConnections);
+    scene.add(groupHighlights);
+
+    // Parameters
+    const baseWidth = 110;
+    const baseLength = 202;
+    const stepCount = 3;
+    const stepHeight = 4;
+    const stepDepth = 6;
+
+    // Stairs/Base
+    for (let i = 0; i < stepCount; i++) {
+        const w = baseWidth + (stepCount - i) * stepDepth * 2;
+        const l = baseLength + (stepCount - i) * stepDepth * 2;
+        const geomStep = new THREE.BoxGeometry(w, stepHeight, l);
+        const meshStep = new THREE.Mesh(geomStep, matMarbleBase);
+        meshStep.position.y = - (stepCount - i) * stepHeight + stepHeight/2;
+        meshStep.receiveShadow = true;
+        meshStep.castShadow = true;
+        groupTemple.add(meshStep);
+    }
+
+    // Top floor
+    const geomFloor = new THREE.BoxGeometry(baseWidth, 4, baseLength);
+    const meshFloor = new THREE.Mesh(geomFloor, matMarbleBase);
+    meshFloor.position.y = 2; // Surface is at y=4
+    meshFloor.receiveShadow = true;
+    meshFloor.castShadow = true;
+    groupTemple.add(meshFloor);
+
+    // 4 Pillars at edges - Detailed Ionic Order
+    const pRadius = 5.5;
+    const pHeight = 80;
+    
+    function createIonicPillar(x, y, z) {
+        const group = new THREE.Group();
+        
+        // Shaft (fluted appearance with 16 segments, slightly tapered)
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(pRadius * 0.85, pRadius, pHeight, 16), matPillar);
+        shaft.position.y = pHeight / 2;
+        shaft.castShadow = true;
+        shaft.receiveShadow = true;
+        group.add(shaft);
+
+        // Base (Torus moldings)
+        const base1 = new THREE.Mesh(new THREE.TorusGeometry(pRadius * 1.3, 1, 16, 24), matPillar);
+        base1.rotation.x = Math.PI / 2;
+        base1.position.y = 1;
+        base1.castShadow = true;
+        group.add(base1);
+
+        const base2 = new THREE.Mesh(new THREE.TorusGeometry(pRadius * 1.1, 0.8, 16, 24), matPillar);
+        base2.rotation.x = Math.PI / 2;
+        base2.position.y = 2.5;
+        base2.castShadow = true;
+        group.add(base2);
+
+        const squareBase = new THREE.Mesh(new THREE.BoxGeometry(pRadius * 3, 1, pRadius * 3), matPillar);
+        squareBase.position.y = 0.5;
+        squareBase.castShadow = true;
+        group.add(squareBase);
+
+        // Capital (Echinus and Volutes)
+        // Echinus (cushion)
+        const echinus = new THREE.Mesh(new THREE.CylinderGeometry(pRadius * 1.1, pRadius * 0.85, 1.0, 16), matPillar);
+        echinus.position.y = pHeight + 0.5; // (80 to 81)
+        echinus.castShadow = true;
+        group.add(echinus);
+
+        // Two Volutes (Scrolls on left and right edges facing front/back)
+        const voluteRadius = 1.8;
+        const voluteGeom = new THREE.CylinderGeometry(voluteRadius, voluteRadius, pRadius * 2.7, 16);
+        
+        // Left Roll
+        const volute1 = new THREE.Mesh(voluteGeom, matPillar);
+        volute1.rotation.x = Math.PI / 2; // Lie along Z axis
+        volute1.position.set(-pRadius * 1.1, pHeight + 2, 0); // Center at 82, Top 83.8
+        volute1.castShadow = true;
+        group.add(volute1);
+
+        // Right Roll
+        const volute2 = new THREE.Mesh(voluteGeom, matPillar);
+        volute2.rotation.x = Math.PI / 2;
+        volute2.position.set(pRadius * 1.1, pHeight + 2, 0);
+        volute2.castShadow = true;
+        group.add(volute2);
+
+        // Inner recessed scroll details
+        const vInMat = new THREE.MeshStandardMaterial({color: 0xc4bbaa, roughness: 0.9});
+        const vInGeom = new THREE.CylinderGeometry(voluteRadius * 0.6, voluteRadius * 0.6, pRadius * 2.8, 16);
+        
+        const vIn1 = new THREE.Mesh(vInGeom, vInMat);
+        vIn1.rotation.x = Math.PI / 2;
+        vIn1.position.copy(volute1.position);
+        group.add(vIn1);
+
+        const vIn2 = new THREE.Mesh(vInGeom, vInMat);
+        vIn2.rotation.x = Math.PI / 2;
+        vIn2.position.copy(volute2.position);
+        group.add(vIn2);
+
+        // Bolster (Artificial filling between the volutes)
+        const bolsterGeom = new THREE.BoxGeometry(pRadius * 2.2, voluteRadius * 2, pRadius * 2.6);
+        const bolster = new THREE.Mesh(bolsterGeom, matPillar);
+        bolster.position.y = pHeight + 2; 
+        bolster.castShadow = true;
+        group.add(bolster);
+
+        // Abacus (flat plate resting on the rolls at top)
+        const abacusWidth = pRadius * 3.4;
+        const abacusDepth = pRadius * 2.7;
+        const abacus = new THREE.Mesh(new THREE.BoxGeometry(abacusWidth, 1.0, abacusDepth), matPillar);
+        abacus.position.y = pHeight + 4.3; // (Top of rolls is 83.8, Abacus center 84.3 -> bottom 83.8)
+        abacus.castShadow = true;
+        group.add(abacus);
+
+        group.position.set(x, y, z);
+        return group;
+    }
+
+    // Pillars exactly at the theoretical intersections of the outermost columns/rows
+    const pX = 46.8;
+    const pZ = 93.6;
+
+    const positions = [
+        [-pX, -pZ],
+        [pX, -pZ],
+        [-pX, pZ],
+        [pX, pZ]
+    ];
+
+    positions.forEach(([x, z]) => {
+        // Floor is at y=4
+        const p = createIonicPillar(x, 4, z);
+        groupTemple.add(p);
+    });
+
+    // Horizon Stones & Epic Courtyard Terraces
+    const tMat = new THREE.MeshStandardMaterial({ color: 0xcdc0b0, roughness: 0.9, metalness: 0.1 });
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0xeae6df, roughness: 0.7 });
+    const terraces = [
+        {w: 800, h: 2, l: 1000, y: -13, z: 0, mat: baseMat}, // Lowered courtyard to expose 3 stairs
+        {w: 900, h: 20, l: 1100, y: -24, z: 0, mat: tMat},
+        {w: 1200, h: 40, l: 1500, y: -54, z: 0, mat: tMat}
+    ];
+    terraces.forEach(t => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(t.w, t.h, t.l), t.mat);
+        mesh.position.set(0, t.y, t.z);
+        mesh.receiveShadow = true;
+        groupTemple.add(mesh);
+    });
+
+    // Massive Disappearing Roof
+    const roofGroup = new THREE.Group();
+    window.templeRoof = roofGroup;
+
+    // Roof dimensions
+    const overhangLength = 208; // 202 + overhang
+    const overhangWidth = 114;
+    const architraveMat = matPillar.clone();
+    architraveMat.transparent = true;
+    architraveMat.opacity = 0;
+
+    // 1. Architrave
+    const a1 = new THREE.Mesh(new THREE.BoxGeometry(112, 4, 206), architraveMat);
+    a1.position.y = 86.8; 
+    a1.castShadow = true;
+    roofGroup.add(a1);
+
+    // 2. Frieze
+    const a2 = new THREE.Mesh(new THREE.BoxGeometry(110, 4, 204), architraveMat);
+    a2.position.y = 90.8;
+    a2.castShadow = true;
+    roofGroup.add(a2);
+
+    // 3. Cornice
+    const cornice = new THREE.Mesh(new THREE.BoxGeometry(overhangWidth, 2, overhangLength), architraveMat);
+    cornice.position.y = 93.8;
+    cornice.castShadow = true;
+    roofGroup.add(cornice);
+
+    const roofBaseY = 94.8; // Top surface of cornice
+    const roofHeight = 16; // Flatter roof
+
+    // 4. Tympanum (Recessed triangular wall "roof wall")
+    const tympShape = new THREE.Shape();
+    tympShape.moveTo(-52, 0); // slightly recessed from 114/2=57
+    tympShape.lineTo(0, roofHeight - 1);
+    tympShape.lineTo(52, 0);
+    tympShape.lineTo(-52, 0);
+
+    const tympExtrude = { depth: 200, bevelEnabled: false }; // recessed from 208
+    const tympGeom = new THREE.ExtrudeGeometry(tympShape, tympExtrude);
+    const tympMesh = new THREE.Mesh(tympGeom, architraveMat);
+    tympMesh.position.set(0, roofBaseY, -100); // centered 
+    tympMesh.castShadow = true;
+    roofGroup.add(tympMesh);
+
+    // 5. Pitched Roof Plates
+    const roofMat = new THREE.MeshStandardMaterial({ 
+        color: 0x8b3a2b, roughness: 0.9, metalness: 0.1, 
+        transparent: true, opacity: 0
+    });
+    const panelWidth = Math.sqrt(Math.pow(overhangWidth/2, 2) + Math.pow(roofHeight, 2));
+    const panelAngle = Math.atan2(roofHeight, overhangWidth/2);
+    const roofPanelGeom = new THREE.BoxGeometry(panelWidth, 2, overhangLength);
+    
+    const leftPanel = new THREE.Mesh(roofPanelGeom, roofMat);
+    leftPanel.position.set(-overhangWidth/4, roofBaseY + roofHeight/2, 0);
+    leftPanel.rotation.z = panelAngle;
+    leftPanel.castShadow = true;
+    roofGroup.add(leftPanel);
+
+    const rightPanel = new THREE.Mesh(roofPanelGeom, roofMat);
+    rightPanel.position.set(overhangWidth/4, roofBaseY + roofHeight/2, 0);
+    rightPanel.rotation.z = -panelAngle;
+    rightPanel.castShadow = true;
+    roofGroup.add(rightPanel);
+
+    groupTemple.add(roofGroup);
+}
+
+function build3DBoard() {
+    // Clear existing
+    while(groupBoard.children.length > 0) groupBoard.remove(groupBoard.children[0]);
+    while(groupConnections.children.length > 0) groupConnections.remove(groupConnections.children[0]);
+    fieldMeshes.clear();
+
+    const fieldHeight = 4; // pushed out of ground
+    const surfaceY = 4; // Top of floor
+
+    // Draw fields
+    board.forEach((node, key) => {
+        const { x, z } = get3DCoord(node.x, node.y);
+        
+        // Pedestal (truncated cone for "pushed out")
+        const geomPedestal = new THREE.CylinderGeometry(5, 7, fieldHeight, 16);
+        const material = node.isArtemis ? matArtemis : matField;
+        const mesh = new THREE.Mesh(geomPedestal, material);
+        mesh.position.set(x, surfaceY + fieldHeight/2, z);
+        mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        
+        // Add user data for raycasting
+        mesh.userData = { isField: true, row: node.row, col: node.col, key: key };
+        
+        groupBoard.add(mesh);
+        fieldMeshes.set(key, mesh);
+    });
+
+    // Draw Connection bridges
+    // We will draw bridges between pedestals slightly above the floor
+    const drawnLines = new Set();
+    const bridgeMat = new THREE.MeshStandardMaterial({ color: 0xe6e2da, roughness: 0.7 });
+
+    connections.forEach((nodeConnections, key) => {
+        const node = board.get(key);
+        const { x: x1, z: z1 } = get3DCoord(node.x, node.y);
+
+        nodeConnections.forEach(conn => {
+            const connKey = `${conn.row},${conn.col}`;
+            const lineId = [key, connKey].sort().join('|');
+
+            if (!drawnLines.has(lineId)) {
+                const connNode = board.get(connKey);
+                const { x: x2, z: z2 } = get3DCoord(connNode.x, connNode.y);
+
+                const dx = x2 - x1;
+                const dz = z2 - z1;
+                const distance = Math.sqrt(dx*dx + dz*dz);
+                const angle = Math.atan2(dx, dz);
+
+                // Use BoxGeometry for bridges
+                const bridgeGeom = new THREE.BoxGeometry(2.5, 1.5, distance - 8);
+                const bridge = new THREE.Mesh(bridgeGeom, bridgeMat);
+                
+                bridge.position.set(x1 + dx/2, surfaceY + 2, z1 + dz/2);
+                bridge.rotation.y = angle;
+                bridge.receiveShadow = true;
+                bridge.castShadow = true;
+
+                groupConnections.add(bridge);
+                drawnLines.add(lineId);
+            }
+        });
+    });
+    
+    sync3DPieces();
+}
+
+function sync3DPieces(animate = false) {
+    // Determine target state
+    const currentBoard = new Map();
+    board.forEach((node, key) => {
+        if (node.piece) {
+            currentBoard.set(key, node.piece);
+        }
+    });
+
+    // Remove logic
+    const toRemove = [];
+    stoneMeshes.forEach((mesh, pieceKey) => {
+        // pieceKey might just be a unique ID, or we can use row_col as key
+        // We actually track meshes by current board position key
+        if (!currentBoard.has(pieceKey) || currentBoard.get(pieceKey) !== mesh.userData.color) {
+            toRemove.push(pieceKey);
+        }
+    });
+
+    toRemove.forEach(key => {
+        const m = stoneMeshes.get(key);
+        // Animate out if leap of faith or capture
+        if (animate) {
+            new TWEEN.Tween(m.scale)
+                .to({ x:0, y:0, z:0 }, 300)
+                .easing(TWEEN.Easing.Back.In)
+                .onComplete(() => {
+                    groupPieces.remove(m);
+                })
+                .start();
+        } else {
+            groupPieces.remove(m);
+        }
+        stoneMeshes.delete(key);
+    });
+
+    // Add or Update logic
+    currentBoard.forEach((color, key) => {
+        const node = board.get(key);
+        const { x, z } = get3DCoord(node.x, node.y);
+        const surfaceY = 4 + 4; // floor + fieldHeight
+
+        if (!stoneMeshes.has(key)) {
+            const group = new THREE.Group();
+            
+            // Replicate Pyramid Game's stone geometry exactly at roughly 10x scale
+            const bodyGeo = new THREE.CylinderGeometry(3.2, 3.6, 4.5, 24);
+            const originalMat = color === 'white' ? matWhitePiece : matBlackPiece;
+            const bodyMat = originalMat.clone(); // Clone to prevent global emissive leaks
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+            
+            const topGeo = new THREE.SphereGeometry(3.2, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const top = new THREE.Mesh(topGeo, bodyMat);
+            top.position.y = 2.25;
+            top.castShadow = true;
+            group.add(top);
+
+            const bevelGeo = new THREE.TorusGeometry(3.2, 0.25, 12, 32);
+            const bevelMat = new THREE.MeshStandardMaterial({
+                color: 0xD4AF37,
+                roughness: 0.2,
+                metalness: 0.8,
+                emissive: 0x332200,
+                emissiveIntensity: 0.1
+            });
+            const bevel = new THREE.Mesh(bevelGeo, bevelMat);
+            bevel.rotation.x = Math.PI / 2;
+            bevel.position.y = 2.2;
+            bevel.castShadow = true;
+            group.add(bevel);
+            
+            group.position.set(x, surfaceY + 2.25, z);
+            group.userData = { isStone: true, color: color, row: node.row, col: node.col, key: key };
+            
+            // Add user data to children to catch raycasts and store their original emissive
+            [body, top, bevel].forEach(m => {
+                m.userData = group.userData;
+                m.userData.originalEmissive = m.material.emissive.getHex();
+            });
+
+            groupPieces.add(group);
+            stoneMeshes.set(key, group);
+
+            if (animate) {
+                group.scale.set(0,0,0);
+                new TWEEN.Tween(group.scale)
+                    .to({x:1, y:1, z:1}, 400)
+                    .easing(TWEEN.Easing.Elastic.Out)
+                    .start();
+            }
+        } else {
+            // Ensure position is correct
+            const mesh = stoneMeshes.get(key);
+            mesh.userData.row = node.row;
+            mesh.userData.col = node.col;
+            if (!animate) {
+                mesh.position.set(x, surfaceY + 2.25, z);
+            }
+        }
+    });
+}
+
+function animateMove3D(fromRow, fromCol, toRow, toCol, onCompleteCallback) {
+    const fromKey = `${fromRow},${fromCol}`;
+    const toKey = `${toRow},${toCol}`;
+    const mesh = stoneMeshes.get(fromKey);
+
+    if (mesh) {
+        // Find target coords
+        const toNode = board.get(toKey) || { 
+            // Handle leap of faith off-board calc if needed, though usually we just scale down
+            x: board.get(fromKey).x + (toCol - fromCol)*13, 
+            y: board.get(fromKey).y + (toRow - fromRow)*13 
+        };
+        const { x, z } = get3DCoord(toNode.x, toNode.y);
+        const targetY = 4 + 4 + 2.25;
+
+        // Move mesh in map early to prevent sync3DPieces from recreating
+        stoneMeshes.delete(fromKey);
+        stoneMeshes.set(toKey, mesh);
+        mesh.userData.row = toRow;
+        mesh.userData.col = toCol;
+        mesh.userData.key = toKey;
+
+        // Jump animation
+        const midX = (mesh.position.x + x) / 2;
+        const midZ = (mesh.position.z + z) / 2;
+        const midY = targetY + 15; // Arc height
+
+        const tX = new TWEEN.Tween(mesh.position).to({ x: x, z: z }, 400).easing(TWEEN.Easing.Quadratic.InOut);
+        
+        // Arc
+        const yUp = new TWEEN.Tween(mesh.position).to({ y: midY }, 200).easing(TWEEN.Easing.Quadratic.Out);
+        const yDown = new TWEEN.Tween(mesh.position).to({ y: targetY }, 200).easing(TWEEN.Easing.Quadratic.In);
+        yUp.chain(yDown);
+
+        tX.onComplete(() => {
+            if (onCompleteCallback) onCompleteCallback();
+        });
+
+        tX.start();
+        yUp.start();
+    } else {
+        if (onCompleteCallback) onCompleteCallback();
+    }
+}
+
+// Interactions
+function onPointerDown(event) {
+    if (!window.is3DView || typeof gameState === 'undefined' || gameState === 'GAME_OVER') return;
+
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check pieces first (with recursive set to true since they are now Groups)
+    const intersectsPieces = raycaster.intersectObjects(groupPieces.children, true);
+    if (intersectsPieces.length > 0) {
+        const obj = intersectsPieces[0].object;
+        if (obj.userData.isStone) {
+            // Trigger 2D logic hook
+            if (window.handleNodeClick) {
+                window.handleNodeClick(obj.userData.row, obj.userData.col);
+            }
+            return;
+        }
+    }
+
+    // Check fields / off-board valid moves next
+    const intersectsFields = raycaster.intersectObjects(groupBoard.children);
+    if (intersectsFields.length > 0) {
+        const obj = intersectsFields[0].object;
+        if (obj.userData.isField) {
+            // Check if this field is a valid move highlight
+            if (window.handleNodeClick) {
+                window.handleNodeClick(obj.userData.row, obj.userData.col);
+            }
+            return;
+        }
+    }
+    
+    // Check Leap of Faith highlights
+    const intersectsHighlights = raycaster.intersectObjects(groupHighlights.children);
+    if (intersectsHighlights.length > 0) {
+        const obj = intersectsHighlights[0].object;
+        if (obj.userData.isLeapOfFaith) {
+            if (window.handleLeapOfFaith) {
+                window.handleLeapOfFaith(obj.userData.move);
+            }
+        }
+    }
+}
+
+function update3DHighlights() {
+    // Clear old highlights
+    while(groupHighlights.children.length > 0) groupHighlights.remove(groupHighlights.children[0]);
+    
+    // Reset selections and highlights on pieces
+    stoneMeshes.forEach(mesh => {
+        mesh.children.forEach(c => {
+            if (c.material && c.material.emissive && c.userData.originalEmissive !== undefined) {
+                c.material.emissive.setHex(c.userData.originalEmissive);
+            }
+        });
+    });
+    fieldMeshes.forEach(mesh => {
+        mesh.material.emissive.setHex(mesh.userData.key.includes("0,2") || mesh.userData.key.includes("8,2") ? 0x4c1d95 : 0x000000);
+    });
+
+    if (selectedStone) {
+        const key = `${selectedStone.row},${selectedStone.col}`;
+        const mesh = stoneMeshes.get(key);
+        if (mesh) {
+            mesh.children.forEach(c => {
+                if (c.material && c.material.emissive) c.material.emissive.setHex(0xf59e0b); // Selection glow
+            });
+        }
+    }
+
+    if (isInLeapChain && leapChainStart) {
+        const key = `${leapChainStart.row},${leapChainStart.col}`;
+        const mesh = stoneMeshes.get(key);
+        if (mesh) {
+            mesh.children.forEach(c => {
+                if (c.material && c.material.emissive) c.material.emissive.setHex(0xa855f7); // Leap chain glow
+            });
+        }
+    }
+
+    // Add field highlights
+    validMoves.forEach(move => {
+        if (!move.offBoard) {
+            const key = `${move.row},${move.col}`;
+            const fMesh = fieldMeshes.get(key);
+            if (fMesh) {
+                // Add a glowing halo above the field
+                const haloGeom = new THREE.RingGeometry(4.5, 6, 16);
+                const halo = new THREE.Mesh(haloGeom, matHighlight);
+                halo.rotation.x = -Math.PI / 2;
+                halo.position.copy(fMesh.position);
+                halo.position.y += 2.2; // just above pedestal
+                groupHighlights.add(halo);
+            }
+        } else {
+            // Leap of faith target
+            const overNode = board.get(`${move.over.row},${move.over.col}`);
+            if (overNode) {
+                const dx = move.col - move.over.col;
+                const dy = move.row - move.over.row;
+                const svgX = overNode.x + (dx * 13);
+                const svgY = overNode.y + (dy * 13);
+                const { x, z } = get3DCoord(svgX, svgY);
+
+                const haloGeom = new THREE.RingGeometry(3, 5, 16);
+                const redHighlight = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+                const halo = new THREE.Mesh(haloGeom, redHighlight);
+                halo.rotation.x = -Math.PI / 2;
+                halo.position.set(x, 4 + 4.5, z);
+                halo.userData = { isLeapOfFaith: true, move: move };
+                groupHighlights.add(halo);
+            }
+        }
+    });
+}
+
+function animate3D(time) {
+    TWEEN.update(time);
+    controls.update();
+
+    // Pulse leap of faith highlights
+    groupHighlights.children.forEach(mesh => {
+        if (mesh.userData.isLeapOfFaith) {
+            mesh.scale.setScalar(1 + Math.sin(time * 0.005) * 0.2);
+        }
+    });
+
+    // Roof Visibility Logic (fades out as camera approaches)
+    if (window.templeRoof) {
+        // Calculate distance from camera to the center of the temple board (y roughly 40 for average view)
+        const dist = camera.position.distanceTo(new THREE.Vector3(0, 40, 0));
+        
+        // Start fading at dist=350, completely invisible at dist=250
+        let targetOpacity = (dist - 250) / 100;
+        targetOpacity = Math.max(0, Math.min(1, targetOpacity));
+
+        window.templeRoof.children.forEach(mesh => {
+            if (mesh.material) {
+                // If opacity is very close to 0, completely hide it to save rendering performance
+                mesh.visible = targetOpacity > 0.02;
+                mesh.material.opacity = targetOpacity;
+                
+                // Keep shadows sharp only when the roof is fully materialized
+                mesh.castShadow = targetOpacity > 0.8;
+            }
+        });
+    }
+
+    renderer.render(scene, camera);
+}
+
+// Hook functions to expose to temple-game.js
+window.init3DSystem = init3D;
+window.rebuild3DBoard = build3DBoard;
+window.sync3D = sync3DPieces;
+window.animate3DMove = animateMove3D;
+window.update3DViews = update3DHighlights;
+
+// Setup View Toggle listeners
+document.addEventListener('DOMContentLoaded', () => {
+    const viewButtons = document.querySelectorAll('.view-menu button');
+    const viewBtnText = document.getElementById('view-btn');
+    const viewMenu = document.getElementById('view-menu');
+    
+    if (viewBtnText && viewMenu) {
+        viewBtnText.addEventListener('click', () => {
+            viewMenu.classList.toggle('show-menu');
+        });
+    }
+
+    // Auto start in 3D Mode
+    document.body.classList.add('view-3d');
+    viewBtnText.textContent = 'View: 3D';
+    window.is3DView = true;
+    init3D();
+
+    viewButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            if (viewMenu) viewMenu.classList.remove('show-menu');
+            const view = e.target.getAttribute('data-view');
+            if (view === '3d') {
+                document.body.classList.add('view-3d');
+                viewBtnText.textContent = 'View: 3D';
+                window.is3DView = true;
+                
+                // Initialize if not already
+                if (!renderer) {
+                    init3D();
+                } else {
+                    onWindowResize(); // Ensure canvas is correct size
+                }
+            } else {
+                document.body.classList.remove('view-3d');
+                viewBtnText.textContent = 'View: 2D';
+                window.is3DView = false;
+            }
+        });
+    });
+});
