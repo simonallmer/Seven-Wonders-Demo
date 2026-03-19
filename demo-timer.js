@@ -126,7 +126,7 @@ function showExpiredOverlay(container) {
     overlay.innerHTML = `
         <p style="font-size: 1.2rem; letter-spacing: 0.1em; margin-bottom: 30px; opacity: 0.7;">Your daily demo time has ended.</p>
         <p style="font-size: 1rem; margin-bottom: 40px; max-width: 400px; line-height: 1.8;">Continue playing and unlock all features with an Arcade Subscription.</p>
-        <a href="http://simonallmer.com/sevenwondersarcade" style="
+        <a href="https://simonallmer.com/sevenwondersarcade" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="
             display: inline-block;
             padding: 14px 40px;
             font-family: 'Cinzel', serif;
@@ -168,7 +168,7 @@ function showSubscriptionPopup() {
         <div style="background: linear-gradient(135deg, #1a1612 0%, #110f0d 100%); border: 1px solid rgba(197, 160, 89, 0.4); border-radius: 8px; padding: 40px; max-width: 450px; text-align: center; color: #E3DAC9;">
             <h2 style="color: #C5A059; font-size: 1.4rem; letter-spacing: 0.15em; margin-bottom: 25px;">ARCADE SUBSCRIPTION</h2>
             <p style="line-height: 1.8; font-size: 1rem; margin-bottom: 30px;">Access Unlimited Play with an Arcade Subscription.</p>
-            <a href="http://simonallmer.com/sevenwondersarcade" style="
+            <a href="https://simonallmer.com/sevenwondersarcade" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="
                 display: inline-block;
                 padding: 14px 40px;
                 font-size: 1rem;
@@ -247,7 +247,7 @@ function updateTimerContent(timer) {
         timer.innerHTML = `
             <span style="color: rgba(227, 218, 201, 0.5); display: inline-block; width: 70px;">DEMO ENDED</span>
             <span style="margin-left: 8px; color: rgba(197, 160, 89, 0.6);">|</span>
-            <a href="http://simonallmer.com/sevenwondersarcade" style="color: #C5A059; margin-left: 8px; text-decoration: none;" onclick="event.stopPropagation()">Subscribe</a>
+            <a href="https://simonallmer.com/sevenwondersarcade" target="_blank" rel="noopener noreferrer" style="color: #C5A059; margin-left: 8px; text-decoration: none;" onclick="event.stopPropagation()">Subscribe</a>
         `;
     } else {
         const display = `<span id="permanent-timer-display" style="color: ${isLow ? '#ff6b6b' : '#C5A059'}; display: inline-block; min-width: 45px;">${formatTime(remaining)}</span>`;
@@ -286,7 +286,7 @@ function showMenuDemoStatus() {
                 DEMO TIME EXPIRED
             </p>
             <p style="font-size: 0.8rem; margin-bottom: 15px;">
-                <a href="http://simonallmer.com/sevenwondersarcade" style="color: #C5A059; text-decoration: underline;">
+                <a href="https://simonallmer.com/sevenwondersarcade" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color: #C5A059; text-decoration: underline;">
                     Subscribe
                 </a> to unlock all features.
             </p>
@@ -365,7 +365,7 @@ function updateGameMenuTimer(timerDiv) {
     if (isExpired) {
         timerDiv.innerHTML = `
             <div style="font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.1em; color: rgba(227, 218, 201, 0.5); margin-bottom: 8px;">DEMO ENDED</div>
-            <a href="http://simonallmer.com/sevenwondersarcade" style="font-family: 'Cinzel', serif; font-size: 0.75rem; color: #C5A059; text-decoration: underline;">Subscribe</a>
+            <a href="https://simonallmer.com/sevenwondersarcade" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-family: 'Cinzel', serif; font-size: 0.75rem; color: #C5A059; text-decoration: underline;">Subscribe</a>
         `;
     } else {
         timerDiv.innerHTML = `

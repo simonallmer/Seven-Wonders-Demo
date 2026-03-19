@@ -98,8 +98,8 @@ function initializeUI() {
     });
 
     // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-        if (isMenuOpen && !sideMenu.contains(e.target) && !menuToggle.contains(e.target)) {
+    document.addEventListener('pointerdown', (e) => {
+        if (isMenuOpen && sideMenu && !sideMenu.contains(e.target) && menuToggle && !menuToggle.contains(e.target)) {
             isMenuOpen = false;
             menuToggle.classList.remove('active');
             sideMenu.classList.remove('open');

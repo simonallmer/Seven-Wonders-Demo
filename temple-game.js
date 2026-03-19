@@ -1190,11 +1190,10 @@ if (gameOverModal) {
     });
 }
 
-// Global listener to close dropdowns when clicking outside
-document.addEventListener('click', (e) => {
-    // List of dropdown containers
+// Global listener to close dropdowns and HUD when clicking outside
+document.addEventListener('pointerdown', (e) => {
+    // 1. Handle Dropdown menus
     const dropdownContainers = ['.view-dropdown', '.opp-dropdown', '.players-dropdown'];
-    
     dropdownContainers.forEach(selector => {
         const container = document.querySelector(selector);
         if (container && !container.contains(e.target)) {
@@ -1202,6 +1201,20 @@ document.addEventListener('click', (e) => {
             if (menu) menu.classList.remove('show-menu');
         }
     });
+
+    // 2. Handle Main Menu / HUD
+    const trigger = document.getElementById('menu-trigger');
+    const header = document.getElementById('main-header');
+    const hud = document.getElementById('hud');
+    
+    // If header is visible, check if we clicked outside all related elements
+    if (header && header.classList.contains('visible')) {
+        if (!header.contains(e.target) && !trigger.contains(e.target) && !hud.contains(e.target)) {
+            trigger.classList.remove('active');
+            header.classList.remove('visible');
+            hud.classList.remove('visible');
+        }
+    }
 });
 
 document.addEventListener('DOMContentLoaded', initializeBoard);

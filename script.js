@@ -115,13 +115,13 @@ function handleGameSelection(gameId) {
 
         if (game.status === 'available' && game.url) {
             if (!checkDemoAccess()) {
-                alert(`Your daily demo time has ended.\n\nContinue playing and unlock all features with an Arcade Subscription.\n\nhttp://simonallmer.com/sevenwondersarcade`);
+                alert(`Your daily demo time has ended.\n\nContinue playing and unlock all features with an Arcade Subscription.\n\nhttps://simonallmer.com/sevenwondersarcade`);
                 return;
             }
             window.location.href = game.url;
         } else if (game.status === 'playtest' && game.url) {
             if (!checkDemoAccess()) {
-                alert(`Your daily demo time has ended.\n\nContinue playing and unlock all features with an Arcade Subscription.\n\nhttp://simonallmer.com/sevenwondersarcade`);
+                alert(`Your daily demo time has ended.\n\nContinue playing and unlock all features with an Arcade Subscription.\n\nhttps://simonallmer.com/sevenwondersarcade`);
                 return;
             }
             const password = prompt(`${game.name} is currently only open to playtesters.\n\nPlease enter the access password:`);
