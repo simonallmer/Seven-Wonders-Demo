@@ -45,7 +45,7 @@ let selectedStone = null;
 let validMoves = [];
 let gameState = 'SELECT_STONE';
 let lastPush = null;
-let isVsComputer = false;
+let isVsComputer = true;
 let isMoveInProgress = false; // Block input during move
 let turnInProgress = false;
 
@@ -138,6 +138,7 @@ function initializeUI() {
             setTimeout(makeAIMove, 600);
         }
     });
+    opponentBtn.textContent = 'Opponent: Computer';
 
     rulesBtn.addEventListener('click', () => {
         rulesModal.classList.remove('hidden');

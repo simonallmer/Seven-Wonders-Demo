@@ -32,8 +32,8 @@ let validMoves = [];
 let gameState = 'SELECT_STONE';
 let isInLeapChain = false;
 let leapChainStart = null;
-let isVsComputer = false;
-let computerDifficulty = 'easy';
+let isVsComputer = true;
+let computerDifficulty = 'medium';
 let isAnimating = false; // Global flag to block all interaction during stone movement
 let moveHistory = []; // Track path directions for leap chaining constraint
 
@@ -1205,4 +1205,9 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', initializeBoard);
+document.addEventListener('DOMContentLoaded', () => {
+    if (opponentBtnText) {
+        opponentBtnText.textContent = 'Computer: Medium';
+    }
+});
 
