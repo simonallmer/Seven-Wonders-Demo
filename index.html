@@ -16,6 +16,10 @@
     <div class="container">
         <header class="main-header">
             <h1 class="title">SEVEN WONDERS</h1>
+            <div id="menu-demo-welcome" class="menu-demo-welcome">
+                <p>Welcome to the free demo version of Seven Wonders</p>
+                <p id="menu-demo-timer">Time remaining: <span id="menu-timer-span">--:--</span></p>
+            </div>
         </header>
 
         <div class="menu-container-3d">
@@ -24,12 +28,12 @@
                     <nav class="game-menu">
                         <ul class="game-list">
                             <li><a href="#pyramid" class="game-link" data-id="pyramid">Pyramid</a></li>
-                            <li><a href="#gardens" class="game-link" data-id="gardens">Gardens</a></li>
+                            <li><a href="#gardens" class="game-link" data-id="gardens">Gardens <span class="coming-soon-3d">3D Soon</span></a></li>
                             <li><a href="#temple" class="game-link" data-id="temple">Temple</a></li>
-                            <li><a href="#statue" class="game-link" data-id="statue">Statue</a></li>
-                            <li><a href="#mausoleum" class="game-link" data-id="mausoleum">Mausoleum</a></li>
-                            <li><a href="#colossus" class="game-link" data-id="colossus">Colossus</a></li>
-                            <li><a href="pharos.html" class="game-link" data-id="pharos">Pharos</a></li>
+                            <li><a href="#statue" class="game-link" data-id="statue">Statue <span class="coming-soon-3d">3D Soon</span></a></li>
+                            <li><a href="#mausoleum" class="game-link" data-id="mausoleum">Mausoleum <span class="coming-soon-3d">3D Soon</span></a></li>
+                            <li><a href="#colossus" class="game-link" data-id="colossus">Colossus <span class="coming-soon-3d">3D Soon</span></a></li>
+                            <li><a href="pharos.html" class="game-link" data-id="pharos">Pharos <span class="coming-soon-3d">3D Soon</span></a></li>
                         </ul>
                         <div class="menu-toggle-wrapper">
                             <button id="show-new-wonders" class="action-btn menu-toggle-btn">New Seven Wonders</button>
@@ -72,6 +76,23 @@
     </div>
 
     <script src="script.js"></script>
+    <script src="demo-timer.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            updateMenuDemoTimer();
+            setInterval(updateMenuDemoTimer, 1000);
+        });
+        
+        function updateMenuDemoTimer() {
+            const span = document.getElementById('menu-timer-span');
+            if (span) {
+                span.textContent = formatTime(getRemainingTime());
+                if (isDemoExpired()) {
+                    document.getElementById('menu-demo-timer').innerHTML = 'Demo time expired. <a href="http://simonallmer.com/sevenwondersarcade" style="color: #C5A059;">Subscribe</a>';
+                }
+            }
+        }
+    </script>
 </body>
 
 </html>

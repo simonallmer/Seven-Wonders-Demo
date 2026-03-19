@@ -8,126 +8,71 @@
     <meta name="description" content="Official events and tournaments for the Seven Wonders game series">
     <link rel="stylesheet" href="style.css">
     <style>
-        .events-container {
-            max-width: 750px;
-            margin: 60px auto;
+        .lock-container {
+            max-width: 600px;
+            margin: 80px auto;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            text-align: center;
         }
 
-        .calendar-card {
-            width: 100%;
-            background: white;
+        .lock-card {
+            background: linear-gradient(135deg, #1a1612 0%, #110f0d 100%);
+            border: 1px solid rgba(197, 160, 89, 0.4);
             border-radius: 4px;
-            padding: 40px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.06);
-            border: 1px solid #e2e8f0;
-            margin-bottom: 40px;
+            padding: 60px 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
         }
 
-        .calendar-header {
-            text-align: center;
+        .lock-title {
             font-family: 'Cinzel', serif;
-            margin-bottom: 30px;
-            color: #111;
-            font-size: 1.5rem;
-            letter-spacing: 4px;
-            font-weight: bold;
+            font-size: 1.2rem;
+            color: #E3DAC9;
+            letter-spacing: 0.15em;
+            margin-bottom: 25px;
         }
 
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 15px;
-            text-align: center;
+        .lock-message {
+            font-size: 0.9rem;
+            color: rgba(227, 218, 201, 0.7);
+            line-height: 1.8;
+            margin-bottom: 35px;
+            letter-spacing: 0.05em;
         }
 
-        .day-name {
-            font-weight: bold;
-            color: #b1ada4;
-            padding-bottom: 20px;
-            font-size: 0.8rem;
-            letter-spacing: 1px;
-        }
-
-        .day {
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #666;
-            border-radius: 50%;
-            font-size: 0.95rem;
-        }
-
-        .day.today {
-            background: #4c1d95;
-            color: white;
-            font-weight: bold;
-            box-shadow: 0 5px 15px rgba(76, 29, 149, 0.3);
-        }
-
-        .city-filters {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-bottom: 50px;
-            flex-wrap: wrap;
-        }
-
-        .city-btn {
-            background: transparent;
-            color: #94a3b8;
-            border: none;
-            padding: 5px 12px;
-            font-family: 'Cinzel', serif;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            font-size: 0.8rem;
-            border-bottom: 1px solid transparent;
-        }
-
-        .city-btn.active {
-            color: #c5a059;
-            border-bottom: 1px solid #c5a059;
-        }
-
-        .city-btn:hover {
-            color: #111;
-        }
-
-        .host-invite {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 0.75rem;
-            color: #a39e93;
-            letter-spacing: 0.8px;
-            border-top: 1px solid #f1f5f9;
-            padding-top: 25px;
-            width: 100%;
-        }
-
-        .host-invite a {
-            color: #64748b;
-            text-decoration: underline;
-            font-weight: bold;
+        .subscribe-btn {
             display: inline-block;
-            margin-top: 5px;
+            padding: 14px 40px;
+            font-family: 'Cinzel', serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0d0b09;
+            background: #C5A059;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
         }
 
-        .events-panel {
-            margin-top: 35px;
-            border-top: 1px solid #f1f5f9;
-            padding-top: 20px;
+        .subscribe-btn:hover {
+            background: #d4b06a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(197, 160, 89, 0.3);
+        }
+
+        .back-link-custom {
+            display: inline-block;
+            margin-top: 30px;
+            color: rgba(197, 160, 89, 0.6);
+            text-decoration: none;
             font-size: 0.85rem;
-            color: #94a3b8;
-            text-align: center;
-            font-family: 'Cinzel', serif;
-            letter-spacing: 1px;
+            letter-spacing: 0.1em;
+            transition: color 0.3s ease;
+        }
+
+        .back-link-custom:hover {
+            color: #C5A059;
         }
     </style>
 </head>
@@ -140,30 +85,15 @@
             <h1 class="title">EVENTS</h1>
         </header>
 
-        <div class="events-container">
-            <div class="city-filters">
-                <button class="city-btn" data-city="Madrid">Madrid</button>
-                <button class="city-btn" data-city="London">London</button>
-                <button class="city-btn" data-city="Paris">Paris</button>
-                <button class="city-btn" data-city="Frankfurt">Frankfurt</button>
-                <button class="city-btn" data-city="Rome">Rome</button>
-                <button class="city-btn" data-city="Vienna">Vienna</button>
-            </div>
-
-            <div class="calendar-card">
-                <div class="calendar-header" id="calendar-month">MONTH</div>
-                <div class="calendar-grid" id="calendar-grid">
-                    <div class="day-name">S</div><div class="day-name">M</div><div class="day-name">T</div>
-                    <div class="day-name">W</div><div class="day-name">T</div><div class="day-name">F</div><div class="day-name">S</div>
-                </div>
-                <div id="location-events" class="events-panel">
-                    NO OFFICIAL EVENTS IN <span id="current-city" style="color: #c5a059;">SELECT CITY</span> THIS MONTH.
-                </div>
-            </div>
-
-            <div class="host-invite">
-                <p>Contact Simon Allmer to have your tournament or gathering featured.</p>
-                <a href="mailto:contact@simonallmer.com">contact@simonallmer.com</a>
+        <div class="lock-container">
+            <div class="lock-card">
+                <h2 class="lock-title">EVENTS LOCKED</h2>
+                <p class="lock-message">
+                    Attend regular Seven Wonders events in cities around the world with an Arcade Subscription.
+                </p>
+                <a href="http://simonallmer.com/sevenwondersarcade" class="subscribe-btn">Learn More</a>
+                <br>
+                <a href="index.html" class="back-link-custom">← Back to Menu</a>
             </div>
         </div>
 
@@ -172,61 +102,6 @@
             <p>&copy; 2020-2026 Simon Allmer Entertainment</p>
         </footer>
     </div>
-
-    <script>
-        function generateCalendar() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = now.getMonth();
-            const today = now.getDate();
-            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-            document.getElementById('calendar-month').textContent = `${monthNames[month]} ${year}`;
-            const firstDay = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const grid = document.getElementById('calendar-grid');
-            for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
-            for (let i = 1; i <= daysInMonth; i++) {
-                const div = document.createElement('div');
-                div.className = 'day' + (i === today ? ' today' : '');
-                div.textContent = i;
-                grid.appendChild(div);
-            }
-        }
-
-        function setupCityFilters() {
-            const btns = document.querySelectorAll('.city-btn');
-            const cityText = document.getElementById('current-city');
-
-            btns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    btns.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    cityText.textContent = btn.getAttribute('data-city').toUpperCase();
-                });
-            });
-
-            try {
-                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                let autoCity = "";
-                if (tz.includes("Madrid")) autoCity = "Madrid";
-                else if (tz.includes("London")) autoCity = "London";
-                else if (tz.includes("Paris") || tz.includes("Berlin") || tz.includes("Brussels") || tz.includes("Amsterdam")) autoCity = "Paris";
-                else if (tz.includes("Frankfurt") || tz.includes("Munich") || tz.includes("Zurich")) autoCity = "Frankfurt";
-                else if (tz.includes("Rome") || tz.includes("Milan")) autoCity = "Rome";
-                else if (tz.includes("Vienna") || tz.includes("Prague") || tz.includes("Budapest")) autoCity = "Vienna";
-
-                if (autoCity) {
-                    const btn = document.querySelector(`.city-btn[data-city="${autoCity}"]`);
-                    if (btn) btn.click();
-                } else {
-                    btns[btns.length-1].click();
-                }
-            } catch(e) { btns[btns.length-1].click(); }
-        }
-
-        generateCalendar();
-        setupCityFilters();
-    </script>
 </body>
 
 </html>

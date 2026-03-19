@@ -92,6 +92,9 @@ function initializeUI() {
         isMenuOpen = !isMenuOpen;
         menuToggle.classList.toggle('active', isMenuOpen);
         sideMenu.classList.toggle('open', isMenuOpen);
+        if (isMenuOpen) {
+            addGameMenuTimer('pyramid-menu-content');
+        }
     });
 
     // Close menu when clicking outside

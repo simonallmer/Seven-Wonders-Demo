@@ -38,7 +38,7 @@
                 <div class="label">Yellow</div>
             </div>
 
-            <div class="controls">
+            <div id="skyscraper-controls" class="controls">
                 <div class="mode-dropdown">
                     <button id="mode-btn">2 Players</button>
                     <div class="mode-menu" id="mode-menu">
@@ -144,6 +144,12 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
     <script src="skyscraper-game.js"></script>
+    <script src="demo-timer.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            addGameMenuTimer('skyscraper-controls');
+        });
+    </script>
 </body>
 
 </html>

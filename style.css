@@ -138,7 +138,7 @@ body::before {
     letter-spacing: 0.12em;
     color: #E3DAC9;
     text-decoration: none;
-    padding: 14px 24px;
+    padding: 14px 80px 14px 24px;
     border-bottom: 1px solid rgba(197, 160, 89, 0.2);
     transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
     position: relative;
@@ -390,4 +390,31 @@ body::before {
     background: #1a1612;
     border-color: #C5A059;
     box-shadow: 0 0 15px rgba(197, 160, 89, 0.2);
+}
+
+.coming-soon-3d {
+    font-size: 0.6rem;
+    color: rgba(197, 160, 89, 0.7);
+    margin-left: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    position: absolute;
+    right: 0;
+}
+
+.menu-demo-welcome {
+    margin-top: 15px;
+    text-align: center;
+}
+
+.menu-demo-welcome p {
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: rgba(227, 218, 201, 0.6);
+    margin-bottom: 5px;
+}
+
+.menu-demo-welcome p:last-child {
+    color: #C5A059;
 }
