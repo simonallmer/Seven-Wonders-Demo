@@ -56,6 +56,7 @@ function init3D() {
     controls.dampingFactor = 0.05;
     controls.minDistance = 50;
     controls.maxDistance = 600;
+    controls.enablePan = false; // Disable panning to keep view centered
     controls.maxPolarAngle = Math.PI / 2 - 0.05; // Don't go below ground
 
     // Lighting
@@ -552,7 +553,7 @@ function animateMove3D(fromRow, fromCol, toRow, toCol, onCompleteCallback) {
         tX.onComplete(() => {
             if (onCompleteCallback) onCompleteCallback();
         });
-
+        
         tX.start();
         yUp.start();
     } else {
@@ -562,47 +563,44 @@ function animateMove3D(fromRow, fromCol, toRow, toCol, onCompleteCallback) {
 
 // Interactions
 function onPointerDown(event) {
-    if (!window.is3DView || typeof gameState === 'undefined' || gameState === 'GAME_OVER') return;
+    if (!window.is3DView || typeof gameState === 'undefined' || gameState === 'GAME_OVER' || isAnimating) return;
 
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
 
-    // Check pieces first (with recursive set to true since they are now Groups)
-    const intersectsPieces = raycaster.intersectObjects(groupPieces.children, true);
-    if (intersectsPieces.length > 0) {
-        const obj = intersectsPieces[0].object;
-        if (obj.userData.isStone) {
-            // Trigger 2D logic hook
-            if (window.handleNodeClick) {
-                window.handleNodeClick(obj.userData.row, obj.userData.col);
-            }
+    // 1. Layered Click Strategy:
+    // First, check for special interaction targets (move circles/off-board targets)
+    const intersectsHighlights = raycaster.intersectObjects(groupHighlights.children, true);
+    if (intersectsHighlights.length > 0) {
+        const obj = intersectsHighlights[0].object;
+        if (obj.userData && (obj.userData.isMoveTarget || obj.userData.isLeapOfFaith)) {
+            const row = obj.userData.move ? obj.userData.move.row : obj.userData.row;
+            const col = obj.userData.move ? obj.userData.move.col : obj.userData.col;
+            if (window.handleNodeClick) window.handleNodeClick(row, col);
             return;
         }
     }
 
-    // Check fields / off-board valid moves next
-    const intersectsFields = raycaster.intersectObjects(groupBoard.children);
-    if (intersectsFields.length > 0) {
-        const obj = intersectsFields[0].object;
-        if (obj.userData.isField) {
-            // Check if this field is a valid move highlight
-            if (window.handleNodeClick) {
-                window.handleNodeClick(obj.userData.row, obj.userData.col);
-            }
+    // Second, check for standard pieces (recursive since they are groups)
+    const intersectsPieces = raycaster.intersectObjects(groupPieces.children, true);
+    if (intersectsPieces.length > 0) {
+        let group = intersectsPieces[0].object;
+        while (group && !group.userData.node) group = group.parent;
+        if (group && group.userData.node) {
+            if (window.handleNodeClick) window.handleNodeClick(group.userData.node.row, group.userData.node.col);
             return;
         }
     }
-    
-    // Check Leap of Faith highlights
-    const intersectsHighlights = raycaster.intersectObjects(groupHighlights.children);
-    if (intersectsHighlights.length > 0) {
-        const obj = intersectsHighlights[0].object;
-        if (obj.userData.isLeapOfFaith) {
-            if (window.handleLeapOfFaith) {
-                window.handleLeapOfFaith(obj.userData.move);
-            }
+
+    // Third, check for fields (pedestals)
+    const intersectsFields = raycaster.intersectObjects(groupBoard.children);
+    if (intersectsFields.length > 0) {
+        const obj = intersectsFields[0].object;
+        if (obj.userData && obj.userData.isField) {
+            if (window.handleNodeClick) window.handleNodeClick(obj.userData.row, obj.userData.col);
+            return;
         }
     }
 }
@@ -611,7 +609,7 @@ function update3DHighlights() {
     // Clear old highlights
     while(groupHighlights.children.length > 0) groupHighlights.remove(groupHighlights.children[0]);
     
-    // Reset selections and highlights on pieces
+    // Reset selections on stones
     stoneMeshes.forEach(mesh => {
         mesh.children.forEach(c => {
             if (c.material && c.material.emissive && c.userData.originalEmissive !== undefined) {
@@ -645,37 +643,50 @@ function update3DHighlights() {
 
     // Add field highlights
     validMoves.forEach(move => {
+        let tx, tz;
+
         if (!move.offBoard) {
             const key = `${move.row},${move.col}`;
             const fMesh = fieldMeshes.get(key);
-            if (fMesh) {
-                // Add a glowing halo above the field
-                const haloGeom = new THREE.RingGeometry(4.5, 6, 16);
-                const halo = new THREE.Mesh(haloGeom, matHighlight);
-                halo.rotation.x = -Math.PI / 2;
-                halo.position.copy(fMesh.position);
-                halo.position.y += 2.2; // just above pedestal
-                groupHighlights.add(halo);
-            }
+            if (!fMesh) return;
+            tx = fMesh.position.x;
+            tz = fMesh.position.z;
         } else {
-            // Leap of faith target
             const overNode = board.get(`${move.over.row},${move.over.col}`);
-            if (overNode) {
-                const dx = move.col - move.over.col;
-                const dy = move.row - move.over.row;
-                const svgX = overNode.x + (dx * 13);
-                const svgY = overNode.y + (dy * 13);
-                const { x, z } = get3DCoord(svgX, svgY);
+            const fromNode = board.get(`${selectedStone.row},${selectedStone.col}`);
+            if (!overNode || !fromNode) return;
 
-                const haloGeom = new THREE.RingGeometry(3, 5, 16);
-                const redHighlight = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-                const halo = new THREE.Mesh(haloGeom, redHighlight);
-                halo.rotation.x = -Math.PI / 2;
-                halo.position.set(x, 4 + 4.5, z);
-                halo.userData = { isLeapOfFaith: true, move: move };
-                groupHighlights.add(halo);
-            }
+            // Symmetry fix: Exactly one board-unit (13 SVG units) beyond the victim
+            const dx = move.col - move.over.col;
+            const dy = move.row - move.over.row;
+            
+            const targetSvgX = overNode.x + (dx * 13);
+            const targetSvgY = overNode.y + (dy * 13);
+            
+            const coord = get3DCoord(targetSvgX, targetSvgY);
+            tx = coord.x;
+            tz = coord.z;
         }
+
+        // 1. Visible Halo Ring
+        const haloGeom = new THREE.RingGeometry(move.offBoard ? 3 : 4.5, move.offBoard ? 5 : 6, 16);
+        const redHighlight = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+        const halo = new THREE.Mesh(haloGeom, move.offBoard ? redHighlight : matHighlight);
+        halo.rotation.x = -Math.PI / 2;
+        // Pedestal height: 4 (floor) + 4 (pedestal) = 8. Surface at 8.
+        // Off-board floor height: 4.
+        const elevation = move.offBoard ? 4.1 : 8.1;
+        halo.position.set(tx, elevation, tz);
+        halo.userData = move.offBoard ? { isLeapOfFaith: true, move: move } : {};
+        groupHighlights.add(halo);
+
+        // 2. Invisible Hit Disk (makes clicking much easier)
+        const hitGeom = new THREE.CircleGeometry(move.offBoard ? 5 : 6.5, 8);
+        const hitMesh = new THREE.Mesh(hitGeom, new THREE.MeshBasicMaterial({ visible: false }));
+        hitMesh.rotation.x = -Math.PI / 2;
+        hitMesh.position.copy(halo.position);
+        hitMesh.userData = { isMoveTarget: true, row: move.row, col: move.col, move: move };
+        groupHighlights.add(hitMesh);
     });
 }
 
@@ -723,7 +734,7 @@ window.update3DViews = update3DHighlights;
 
 // Setup View Toggle listeners
 document.addEventListener('DOMContentLoaded', () => {
-    const viewButtons = document.querySelectorAll('.view-menu button');
+    const viewButtons = document.querySelectorAll('#view-menu button');
     const viewBtnText = document.getElementById('view-btn');
     const viewMenu = document.getElementById('view-menu');
     
@@ -733,11 +744,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Auto start in 3D Mode
-    document.body.classList.add('view-3d');
-    viewBtnText.textContent = 'View: 3D';
-    window.is3DView = true;
-    init3D();
+    // Ensure 3D Mode is active if body class is present
+    if (document.body.classList.contains('view-3d')) {
+        viewBtnText.textContent = 'View: 3D';
+        window.is3DView = true;
+        init3D();
+    }
 
     viewButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {

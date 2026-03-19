@@ -33,6 +33,8 @@ let gameState = 'SELECT_STONE';
 let isInLeapChain = false;
 let leapChainStart = null;
 let isVsComputer = false;
+let computerDifficulty = 'easy';
+let isAnimating = false; // Global flag to block all interaction during stone movement
 let moveHistory = []; // Track path directions for leap chaining constraint
 
 // Track AI behavior to prevent loops
@@ -50,6 +52,8 @@ const cancelButton = document.getElementById('cancel-button');
 const gameOverModal = document.getElementById('game-over-modal');
 const modalTitle = document.getElementById('modal-title');
 const modalText = document.getElementById('modal-text');
+const statusElement = document.getElementById('status-text') || { textContent: '' };
+const playerColorElement = document.getElementById('player-color') || { style: {} };
 
 // ============================================
 // BOARD INITIALIZATION
@@ -99,6 +103,7 @@ function initializeBoard() {
     isInLeapChain = false;
     moveHistory = [];
     leapChainStart = null;
+    isAnimating = false; // Ensure no stale animation locks remain
 
     drawBoard();
     if (window.is3DView && window.rebuild3DBoard) window.rebuild3DBoard();
@@ -461,12 +466,12 @@ function updateStatus(message = null) {
     } else {
         const playerName = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
         if (gameState === 'SELECT_STONE') {
-            statusElement.textContent = `${playerName} to move. Select a stone to move.`;
+            statusElement.textContent = `${playerName}'S TURN`;
         } else if (gameState === 'SELECT_MOVE') {
             if (isInLeapChain) {
-                statusElement.textContent = `${playerName} leap in progress. Select next target or click Stop.`;
+                statusElement.textContent = `KEEP LEAPING OR CLICK STOP`;
             } else {
-                statusElement.textContent = `${playerName} selected. Choose where to move (green highlights).`;
+                statusElement.textContent = `CHOOSE DESTINATION`;
             }
         }
     }
@@ -481,7 +486,7 @@ function hideMessage() {
 }
 
 function updateUI() {
-    if (selectedStone) {
+    if (selectedStone && !(isVsComputer && currentPlayer === 'black')) {
         cancelButton.classList.remove('hidden');
         // Change button text based on leap chain state
         if (isInLeapChain) {
@@ -629,7 +634,7 @@ function calculateLeapMoves(row, col, isChaining = false, previousDirection = nu
                 moves.push({
                     row: offBoardRow,
                     col: offBoardCol,
-                    type: 'leap_of_faith',
+                    type: 'leap', // Unified as leap
                     over: { row: conn.row, col: conn.col },
                     capture: true,
                     offBoard: true,
@@ -666,13 +671,25 @@ function calculateAngleBetweenDirections(dir1, dir2) {
 }
 
 function handleNodeClick(row, col) {
+    // Block ALL clicks if any animation is in progress
+    if (isAnimating) return;
+
+    // If VS Computer, block all clicks during Computer's turn
+    if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
+        return;
+    }
+    
+    // Also block clicking opponent stones during human turn in SELECT_STONE phase
+    const key = `${row},${col}`;
+    const node = board.get(key);
+    if (gameState === 'SELECT_STONE' && node.piece === 'black' && isVsComputer) {
+        return;
+    }
+
     if (gameState === 'GAME_OVER') {
         showMessage("Game Over! Click New Game to play again.");
         return;
     }
-
-    const key = `${row},${col}`;
-    const node = board.get(key);
 
     if (gameState === 'SELECT_STONE') {
         if (node.piece === currentPlayer) {
@@ -731,134 +748,102 @@ function handleNodeClick(row, col) {
     }
 }
 
-function handleLeapOfFaith(move) {
-    if (gameState !== 'SELECT_MOVE') return;
 
-    // Execute the Leap of Faith
-    const fromKey = `${selectedStone.row},${selectedStone.col}`;
-    const overKey = `${move.over.row},${move.over.col}`;
-    const fromNode = board.get(fromKey);
-    const overNode = board.get(overKey);
+// Leap of Faith logic is now integrated into executeMove
 
-    // Remove both stones (the leaping stone and the captured stone)
-    const leapingPlayer = fromNode.piece;
-    const capturedPlayer = overNode.piece;
-    
-    if (window.is3DView && window.animate3DMove) {
-        window.animate3DMove(selectedStone.row, selectedStone.col, move.row, move.col);
-    }
-    
-    fromNode.piece = null;
-    overNode.piece = null;
-
-    showMessage(`${leapingPlayer} performed a Leap of Faith, capturing ${capturedPlayer} stone but sacrificing their own!`);
-
-    // End turn
-    endTurn();
-}
 
 function executeMove(move) {
     const fromKey = `${selectedStone.row},${selectedStone.col}`;
-    const toKey = `${move.row},${move.col}`;
     const fromNode = board.get(fromKey);
-    const toNode = board.get(toKey);
+    if (!fromNode) return;
 
-    // Track AI consecutive moves with the same stone (across turns)
+    const originalStone = { row: selectedStone.row, col: selectedStone.col };
+    const leapingPlayer = fromNode.piece;
+
+    // Track AI consecutive moves (not during leap chains)
     if (currentPlayer === 'black' && !isInLeapChain) {
-        if (aiLastMovedStone &&
-            aiLastMovedStone.row === selectedStone.row &&
-            aiLastMovedStone.col === selectedStone.col) {
+        if (aiLastMovedStone && aiLastMovedStone.row === selectedStone.row && aiLastMovedStone.col === selectedStone.col) {
             aiConsecutiveMoveCount++;
         } else {
             aiConsecutiveMoveCount = 1;
         }
-        // Update to the NEW position for the next turn's check
         aiLastMovedStone = { row: move.row, col: move.col };
     } else if (currentPlayer === 'white') {
         aiLastMovedStone = null;
         aiConsecutiveMoveCount = 0;
     } else if (currentPlayer === 'black' && isInLeapChain) {
-        // Just update location during chain
         aiLastMovedStone = { row: move.row, col: move.col };
     }
 
-    if (window.is3DView && window.animate3DMove) {
-        window.animate3DMove(selectedStone.row, selectedStone.col, move.row, move.col);
-    }
+    const finalizeMove = () => {
+        isAnimating = false;
+        
+        // Remove jumper from its origin
+        fromNode.piece = null;
 
-    // Move the stone
-    toNode.piece = fromNode.piece;
-    fromNode.piece = null;
-
-    // Record move in history
-    moveHistory.push(move);
-
-    let message = '';
-
-    // Handle capture
-    if (move.type === 'leap' && move.capture) {
-        const overKey = `${move.over.row},${move.over.col}`;
-        const overNode = board.get(overKey);
-        message = `${currentPlayer} captured ${overNode.piece} stone! `;
-        overNode.piece = null;
-    }
-
-    // Check for win
-    if (toNode.isArtemis) {
-        const winner = currentPlayer;
-        gameState = 'GAME_OVER';
-        gameState = 'GAME_OVER';
-        const winTitle = `${winner.charAt(0).toUpperCase() + winner.slice(1)} Wins!`;
-        const winText = `${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by reaching the Artemis field!`;
-
-        updateStatus(`Game Over! ${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`);
-        showGameOverModal(winTitle, winText);
-
-        selectedStone = null;
-        validMoves = [];
-        drawBoard();
-        updateUI();
-        return;
-    }
-
-    // Check for leap chaining
-    if (move.type === 'leap') {
-        if (!isInLeapChain) {
-            isInLeapChain = true;
-            leapChainStart = { row: selectedStone.row, col: selectedStone.col };
-        }
-
-        selectedStone = { row: move.row, col: move.col };
-        // Pass the direction of this leap to constrain next leaps
-        const nextLeaps = calculateLeapMoves(move.row, move.col, true, move.direction);
-
-        if (nextLeaps.length > 0) {
-            validMoves = nextLeaps;
-            message += 'Leap successful! Continue leaping or click Stop to end turn.';
-            showMessage(message);
-            drawBoard();
-            updateStatus();
-            updateUI();
-
-            if (isVsComputer && currentPlayer === 'black') {
-                setTimeout(makeAIMove, 400); // Slower for visibility
+        if (move.offBoard) {
+            // Remove captured piece
+            if (move.over) {
+                const overNode = board.get(`${move.over.row},${move.over.col}`);
+                if (overNode) overNode.piece = null;
             }
-            return;
-        } else {
-            // No more leaps available - auto-end turn
-            message += 'Leap successful! No more leaps available.';
-            showMessage(message);
-            // Reset leap chain state before ending turn
-            isInLeapChain = false;
-            leapChainStart = null;
+            showMessage("A Leap of Faith was performed!");
             endTurn();
-            return;
-        }
-    }
+        } else {
+            // Place jumper piece at destination
+            const toNode = board.get(`${move.row},${move.col}`);
+            if (toNode) toNode.piece = leapingPlayer;
 
-    // End turn
-    if (message) showMessage(message);
-    endTurn();
+            // Remove captured piece
+            if (move.capture && move.over) {
+                const overNode = board.get(`${move.over.row},${move.over.col}`);
+                if (overNode) overNode.piece = null;
+            }
+
+            // Check for victory
+            if (toNode && toNode.isArtemis && 
+               ((leapingPlayer === 'white' && toNode.row === 0) || (leapingPlayer === 'black' && toNode.row === 8))) {
+                gameState = 'GAME_OVER';
+                const winnerText = leapingPlayer.charAt(0).toUpperCase() + leapingPlayer.slice(1);
+                showGameOverModal(`${winnerText} Wins!`, `${winnerText} reached the Artemis field!`);
+                endTurn();
+                return;
+            }
+
+            // Record in history for directional constraint
+            moveHistory.push(move);
+
+            // Chaining logic
+            if (move.type === 'leap') {
+                if (!isInLeapChain) {
+                    isInLeapChain = true;
+                    leapChainStart = originalStone;
+                }
+                selectedStone = { row: move.row, col: move.col };
+                const nextLeaps = calculateLeapMoves(move.row, move.col, true, move.direction);
+
+                if (nextLeaps.length > 0) {
+                    validMoves = nextLeaps;
+                    drawBoard();
+                    updateStatus();
+                    updateUI();
+                    if (isVsComputer && currentPlayer === 'black') {
+                        setTimeout(makeAIMove, 600);
+                    }
+                    return;
+                }
+            }
+
+            endTurn();
+        }
+    };
+
+    if (window.is3DView && window.animate3DMove) {
+        isAnimating = true;
+        window.animate3DMove(originalStone.row, originalStone.col, move.row, move.col, finalizeMove);
+    } else {
+        finalizeMove();
+    }
 }
 
 function cancelMove() {
@@ -881,13 +866,37 @@ function endTurn() {
     validMoves = [];
     isInLeapChain = false;
     leapChainStart = null;
+    isAnimating = false; // Reset animation flag on turn end just in case
+    
     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
     gameState = 'SELECT_STONE';
     moveHistory = [];
+    
     drawBoard();
-    if (window.is3DView && window.sync3D) window.sync3D(true);
+    if (window.is3DView) {
+        // Force complete rebuild if we suspect desync
+        if (window.rebuild3DBoard) window.rebuild3DBoard();
+        else if (window.sync3D) window.sync3D(true);
+        if (window.update3DViews) window.update3DViews();
+    }
+    
     updateStatus();
     updateUI();
+
+    // Win check: If any player has 0 stones left
+    let whiteCount = 0;
+    let blackCount = 0;
+    board.forEach(node => {
+        if (node.piece === 'white') whiteCount++;
+        else if (node.piece === 'black') blackCount++;
+    });
+
+    if (whiteCount === 0 || blackCount === 0) {
+        const winner = whiteCount === 0 ? 'black' : 'white';
+        gameState = 'GAME_OVER';
+        showGameOverModal(`${winner.charAt(0).toUpperCase() + winner.slice(1)} Wins!`, `All opposing stones have been removed!`);
+        return;
+    }
 
     if (gameState !== 'GAME_OVER' && isVsComputer && currentPlayer === 'black') {
         setTimeout(makeAIMove, 600);
@@ -899,9 +908,13 @@ function endTurn() {
 // ============================================
 
 function makeAIMove() {
-    if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
+    try {
+        if (gameState === 'GAME_OVER' || currentPlayer !== 'black') return;
+        
+        // Safety check: ensure 3D state is synced
+        if (window.is3DView && window.update3DViews) window.update3DViews();
 
-    let possibleMoves = [];
+        let possibleMoves = [];
 
     // Gather all possible starting moves for black
     if (isInLeapChain) {
@@ -910,6 +923,21 @@ function makeAIMove() {
         leapMoves.forEach(move => {
             possibleMoves.push({ stone: { row: selectedStone.row, col: selectedStone.col }, move: move });
         });
+        
+        // Voluntarily stop leap chain early based on difficulty
+        let stopChance = 0;
+        if (computerDifficulty === 'easy') stopChance = 0.5;
+        else if (computerDifficulty === 'medium') stopChance = 0.2;
+        
+        if (possibleMoves.length > 0 && Math.random() < stopChance) {
+            console.log("AI deciding to stay here.");
+            selectedStone = null;
+            validMoves = [];
+            isInLeapChain = false;
+            leapChainStart = null;
+            endTurn();
+            return;
+        }
     } else {
         board.forEach((node, key) => {
             if (node.piece === 'black') {
@@ -937,7 +965,7 @@ function makeAIMove() {
         const { stone, move } = action;
 
         // 1. Win condition
-        const targetNode = board.get(`${move.row},${move.col}`);
+        const targetNode = move.offBoard ? null : board.get(`${move.row},${move.col}`);
         if (targetNode && targetNode.isArtemis && targetNode.row === 8) { // Black targets row 8
             score += 10000;
         }
@@ -959,12 +987,56 @@ function makeAIMove() {
             else if (aiConsecutiveMoveCount >= 1) score -= 50;
         }
 
-        // 4. Leap of faith is bad unless it's a capture (already scored)
+        // 5. Leap of faith is bad unless it's a capture (already scored)
         if (move.offBoard) {
-            score -= 200; // Penalize losing own stone, even if it captures. (Net score: 500 - 200 = 300)
+            if (computerDifficulty === 'easy') {
+                score -= 50; // Very little penalty, might do it randomly
+            } else if (computerDifficulty === 'hard') {
+                score -= 1000; // Hard avoids it strictly unless winning
+            } else {
+                score -= 200; // Normal penalty (Net score: 500 - 200 = 300)
+            }
         }
 
-        score += Math.random() * 5;
+        // 6. Hard mode: 1-ply Danger evaluation
+        if (computerDifficulty === 'hard' && !move.offBoard) {
+            // Check if moving to this spot puts the stone in immediate danger of being captured
+            let inDanger = false;
+            
+            // Temporarily mock the move on the board
+            const originalTargetPiece = targetNode ? targetNode.piece : null;
+            if (targetNode) targetNode.piece = 'black';
+            const originalStonePiece = board.get(`${stone.row},${stone.col}`).piece;
+            board.get(`${stone.row},${stone.col}`).piece = null;
+            
+            board.forEach((node, key) => {
+                if (node.piece === 'white' && !inDanger) {
+                    const whiteLeaps = calculateLeapMoves(node.row, node.col);
+                    if (whiteLeaps.some(wMove => !wMove.offBoard && wMove.over.row === move.row && wMove.over.col === move.col)) {
+                        inDanger = true;
+                    }
+                }
+            });
+            
+            // Revert mock
+            if (targetNode) targetNode.piece = originalTargetPiece;
+            board.get(`${stone.row},${stone.col}`).piece = originalStonePiece;
+            
+            if (inDanger) {
+                // Heavily penalize moving into danger
+                score -= 800;
+            }
+        }
+
+        // 7. Randomness based on difficulty
+        if (computerDifficulty === 'easy') {
+            score += Math.random() * 200;
+        } else if (computerDifficulty === 'medium') {
+            score += Math.random() * 50;
+        } else {
+            // Hard
+            score += Math.random() * 5;
+        }
 
         if (score > bestScore) {
             bestScore = score;
@@ -972,18 +1044,30 @@ function makeAIMove() {
         }
     });
 
+    // Random fallback if no best move found but possibleMoves exists
+    if (!bestMove && possibleMoves.length > 0) {
+        console.warn("AI choosing randomly (fallback).");
+        bestMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+    }
+
     if (bestMove) {
         // Execute the move visually
         selectedStone = bestMove.stone; // mock select
+        updateUI(); // Ensure Cancel btn doesn't flicker on computer turn
 
-        if (bestMove.move.offBoard) {
-            handleLeapOfFaith(bestMove.move);
-        } else {
-            executeMove(bestMove.move);
-        }
+        // Execute the move
+        selectedStone = bestMove.stone; // mock select
+        updateUI(); 
+        executeMove(bestMove.move);
     } else {
-        endTurn(); // fallback
+        console.warn("AI has no moves - passing turn.");
+        endTurn();
     }
+  } catch (err) {
+    console.error("AI turn error:", err);
+    isAnimating = false;
+    endTurn();
+  }
 }
 
 // ============================================
@@ -994,29 +1078,48 @@ resetButton.addEventListener('click', initializeBoard);
 const cancelBtn = document.getElementById('cancel-button');
 if (cancelBtn) cancelBtn.addEventListener('click', cancelMove);
 
-let _opponentBtnTimeout = null;
-const opponentButtonEl = document.getElementById('opponent-btn');
-if (opponentButtonEl) {
-    opponentButtonEl.addEventListener('click', () => {
-        // Computer mode is coming soon — revert immediately after showing the message
-        clearTimeout(_opponentBtnTimeout);
-        isVsComputer = false;
-        opponentButtonEl.textContent = 'Computer Coming Soon';
-        _opponentBtnTimeout = setTimeout(() => {
-            opponentButtonEl.textContent = 'Opponent: Human';
-        }, 1500);
+// Opponent Menu Toggle Logic
+const opponentBtnText = document.getElementById('opponent-btn');
+const opponentMenu = document.getElementById('opponent-menu');
+if (opponentBtnText && opponentMenu) {
+    opponentBtnText.addEventListener('click', () => {
+        opponentMenu.classList.toggle('show-menu');
+    });
+
+    const oppButtons = document.querySelectorAll('#opponent-menu button');
+    oppButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            opponentMenu.classList.remove('show-menu');
+            const opp = e.target.getAttribute('data-opp');
+            
+            // Full reset approach
+            const wasVsComputer = isVsComputer;
+            const previousDifficulty = computerDifficulty;
+            
+            if (opp === 'human') {
+                isVsComputer = false;
+                opponentBtnText.textContent = 'Opponent: Human';
+            } else {
+                isVsComputer = true;
+                computerDifficulty = opp;
+                const levelLabel = opp.charAt(0).toUpperCase() + opp.slice(1);
+                opponentBtnText.textContent = `Computer: ${levelLabel}`;
+            }
+
+            // Always restart to wipe the slate clean
+            console.log("Opponent changed - restarting game for clean state.");
+            initializeBoard();
+        });
     });
 }
 
 let _playersBtnTimeout = null;
-const playersBtn = document.getElementById('players-btn');
-if (playersBtn) {
-    playersBtn.addEventListener('click', () => {
-        clearTimeout(_playersBtnTimeout);
-        playersBtn.textContent = 'Coming Soon';
-        _playersBtnTimeout = setTimeout(() => {
-            playersBtn.textContent = 'Players (3,4, coming soon)';
-        }, 1500);
+// Players Menu Toggle Logic
+const playersBtnText = document.getElementById('players-btn');
+const playersMenu = document.getElementById('players-menu');
+if (playersBtnText && playersMenu) {
+    playersBtnText.addEventListener('click', () => {
+        playersMenu.classList.toggle('show-menu');
     });
 }
 
@@ -1060,6 +1163,46 @@ document.addEventListener('keydown', (e) => {
 // ============================================
 // INITIALIZATION
 // ============================================
+
+// Modal interactions
+const modalNewGameBtn = document.getElementById('modal-new-game');
+const modalMenuBtn = document.getElementById('modal-menu');
+
+if (modalNewGameBtn) {
+    modalNewGameBtn.addEventListener('click', () => {
+        hideGameOverModal();
+        initializeBoard();
+    });
+}
+if (modalMenuBtn) {
+    modalMenuBtn.addEventListener('click', () => {
+        hideGameOverModal();
+        // Just let them look at board - no changes possible while in GAME_OVER state
+    });
+}
+
+// Click outside Game Over modal to hide it (menu mode)
+if (gameOverModal) {
+    gameOverModal.addEventListener('click', (e) => {
+        if (e.target === gameOverModal) {
+            hideGameOverModal();
+        }
+    });
+}
+
+// Global listener to close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    // List of dropdown containers
+    const dropdownContainers = ['.view-dropdown', '.opp-dropdown', '.players-dropdown'];
+    
+    dropdownContainers.forEach(selector => {
+        const container = document.querySelector(selector);
+        if (container && !container.contains(e.target)) {
+            const menu = container.querySelector('.view-menu, .opp-menu, .players-menu');
+            if (menu) menu.classList.remove('show-menu');
+        }
+    });
+});
 
 document.addEventListener('DOMContentLoaded', initializeBoard);
 

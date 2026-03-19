@@ -69,7 +69,7 @@ body::before {
     border: 1px solid var(--border-color);
     background: rgba(255, 255, 255, 0.2);
     transition: all 0.3s ease;
-    z-index: 10;
+    z-index: 1000;
 }
 
 .back-link:hover {
@@ -155,7 +155,10 @@ body.view-3d #canvas3d {
     display: block;
 }
 body.view-3d #game-board {
-    display: none;
+    display: none !important;
+}
+body:not(.view-3d) #game-board {
+    display: block;
 }
 body.view-3d .board-wrapper {
     flex-grow: 1;
@@ -171,15 +174,19 @@ body.view-3d::before {
 
 /* SVG Game Board */
 #game-board {
-    max-width: 90vmin;
-    max-height: 90vmin;
-    width: 500px;
-    height: 700px;
+    display: none;
+    max-width: 90vw;
+    max-height: 80vh;
+    width: auto;
+    height: auto;
+    aspect-ratio: 100 / 120;
+    pointer-events: auto;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(240, 235, 225, 0.1) 100%);
     border: 2px solid var(--border-color);
     box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.15),
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    z-index: 1;
 }
 
 /* SVG Elements */
@@ -275,11 +282,26 @@ body.view-3d::before {
     z-index: 1001;
 }
 
-.view-dropdown {
+.view-dropdown .view-menu.show-menu,
+.opp-dropdown .opp-menu.show-menu,
+.players-dropdown .players-menu.show-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.view-menu button, .opp-menu button, .players-menu button {
+    white-space: nowrap;
+    width: 100%;
+}
+.view-menu button:hover, .opp-menu button:hover, .players-menu button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.view-dropdown, .opp-dropdown, .players-dropdown {
     position: relative;
     display: inline-block;
 }
-.view-menu {
+.view-menu, .opp-menu, .players-menu {
     display: none;
     position: absolute;
     bottom: calc(100% + 10px);
@@ -292,18 +314,12 @@ body.view-3d::before {
     box-shadow: 0 10px 20px rgba(0,0,0,0.6);
     z-index: 100;
 }
-.view-dropdown .view-menu.show-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+.players-menu button.active {
+    background: rgba(255, 255, 255, 0.3);
+    font-weight: bold;
 }
-.view-menu button {
-    white-space: nowrap;
-    width: 100%;
-}
-.view-menu button:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
+
+/* Duplicate HUD block removed - now moved to appropriate interactive section */
 
 .action-btn {
     font-family: 'Cinzel', serif;
@@ -466,17 +482,19 @@ body.view-3d::before {
 /* Game Over Modal */
 .message-overlay {
     position: fixed;
-    inset: 0;
-    background: rgba(42, 37, 32, 0.85);
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
     display: flex;
-    align-items: center;
     justify-content: center;
-    padding: 20px;
+    align-items: center;
+    z-index: 2000;
     opacity: 0;
-    transform: scale(0.95);
     pointer-events: none;
-    transition: opacity 0.3s ease, transform 0.3s ease;
-    z-index: 100;
+    transition: opacity 0.5s ease;
+    backdrop-filter: blur(5px);
 }
 
 .message-overlay.visible {
@@ -489,10 +507,37 @@ body.view-3d::before {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 235, 225, 0.9) 100%);
     border: 2px solid var(--border-color);
     padding: 40px;
-    max-width: 400px;
+    max-width: 440px;
     width: 100%;
     text-align: center;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 30px;
+}
+
+.modal-btn {
+    padding: 12px 24px;
+    background: #4c1d95;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-weight: bold;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    transition: all 0.2s ease;
+}
+
+.modal-btn:hover {
+    background: #6d28d9;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
 
 .message-title {
@@ -587,31 +632,45 @@ body.view-3d::before {
 
 #main-header {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    padding: 15px 0;
-    text-align: center;
-    border-bottom: 1px solid rgba(197, 160, 89, 0.2);
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent);
-    backdrop-filter: blur(8px);
-    z-index: 30;
+    top: 20px;
+    left: 50%;
+    transform: translate(-50%, -150%);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(to bottom, #eae6df, #f5f1e8, #d4cfc4, #b5b0a3);
+    padding: 10px 40px;
+    border-top: 1px solid #ffffff;
+    border-bottom: 2px solid #a39e93;
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: none;
-    transform: translateY(-100%);
-    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border-radius: 2px;
 }
+#main-header::before, #main-header::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 15px;
+    background: #ccc7bd;
+    border: 1px solid #a39e93;
+    box-shadow: inset 2px 0 5px rgba(0,0,0,0.1), inset -2px 0 5px rgba(255,255,255,0.5);
+}
+#main-header::before { left: -15px; border-radius: 4px 0 0 4px; }
+#main-header::after { right: -15px; border-radius: 0 4px 4px 0; }
+
 #main-header.visible {
-    transform: translateY(0);
-    pointer-events: auto;
+    transform: translate(-50%, 0);
 }
 #main-header h1 {
     font-family: 'Ancient Tulip', 'Cinzel', serif;
-    color: white;
+    color: #1a1a1a; /* Black font */
     margin: 0;
-    font-size: 1.8rem;
+    font-size: 1.6rem;
     text-transform: uppercase;
-    letter-spacing: 12px;
-    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+    letter-spacing: 10px;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
     pointer-events: auto;
 }
 
@@ -706,4 +765,7 @@ body.view-3d::before {
     left: 0;
     overflow: hidden;
     z-index: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }

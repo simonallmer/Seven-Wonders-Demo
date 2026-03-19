@@ -9,9 +9,9 @@
     <link rel="stylesheet" href="temple-style.css">
 </head>
 
-<body>
+<body class="view-3d">
     <!-- Back to Menu -->
-    <a href="index.html" class="back-link">Menu</a>
+    <a href="index.html" class="back-link">← Menu</a>
 
     <div id="menu-trigger">
         <div class="sky-line"></div>
@@ -32,14 +32,33 @@
         <button id="cancel-button" class="hidden">Cancel Move</button>
 
         <div id="hud">
+            <div id="status-panel-top" style="position: absolute; top: -45px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; color: #4a4a4a; font-family: 'Cinzel', serif; font-size: 0.75rem; white-space: nowrap; letter-spacing: 1px; text-transform: uppercase; font-weight: bold; text-shadow: 0 1px 2px rgba(255,255,255,0.8);">
+                <div id="player-color" style="width: 14px; height: 14px; border: 1px solid #a39e93; border-radius: 50%; background-color: #fff; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2), 0 0 5px rgba(255,255,255,0.5);"></div>
+                <span id="status-text">White to move</span>
+            </div>
             <div class="controls">
-                <button id="players-btn">Players (3,4, coming soon)</button>
-                <button id="opponent-btn">Opponent: Human</button>
+                <div class="players-dropdown">
+                    <button id="players-btn">2 Players</button>
+                    <div class="players-menu" id="players-menu">
+                        <button class="active">2 Players</button>
+                        <button disabled style="opacity: 0.6; cursor: not-allowed;">3 Players (Coming Soon)</button>
+                        <button disabled style="opacity: 0.6; cursor: not-allowed;">4 Players (Coming Soon)</button>
+                    </div>
+                </div>
+                <div class="opp-dropdown">
+                    <button id="opponent-btn">Opponent: Human</button>
+                    <div class="opp-menu" id="opponent-menu">
+                        <button id="btn-opp-human" data-opp="human">Human</button>
+                        <button id="btn-opp-easy" data-opp="easy">Computer: Easy</button>
+                        <button id="btn-opp-medium" data-opp="medium">Computer: Medium</button>
+                        <button id="btn-opp-hard" data-opp="hard">Computer: Hard</button>
+                    </div>
+                </div>
                 <div class="view-dropdown">
                     <button id="view-btn">View: 3D</button>
                     <div class="view-menu" id="view-menu">
                         <button id="btn-view-3d" data-view="3d">3D View</button>
-                        <button id="btn-view-2d" data-view="2d">2D View</button>
+                        <button disabled style="opacity: 0.6; cursor: not-allowed;">2D View (Coming Soon)</button>
                     </div>
                 </div>
                 <button id="rules-btn">Rules</button>
@@ -59,6 +78,10 @@
         <div class="message-content">
             <h2 id="modal-title" class="message-title"></h2>
             <p id="modal-text" class="message-text"></p>
+            <div class="modal-actions">
+                <button id="modal-new-game" class="modal-btn">New Game</button>
+                <button id="modal-menu" class="modal-btn">Back to Menu</button>
+            </div>
         </div>
     </div>
 
