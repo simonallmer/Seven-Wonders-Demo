@@ -430,4 +430,29 @@ footer {
         font-size: 1.4rem;
         letter-spacing: 2px;
     }
+
+    #hud {
+        max-width: 95vw;
+        overflow-x: auto;
+        padding: 10px 20px;
+        gap: 15px;
+        border-radius: 30px;
+        justify-content: flex-start;
+        scrollbar-width: none; /* Hide scrollbar Firefox */
+        -ms-overflow-style: none;  /* Hide scrollbar IE/Edge */
+    }
+    
+    #hud::-webkit-scrollbar {
+        display: none; /* Hide scrollbar Chrome/Safari/Opera */
+    }
+
+    .score-item {
+        min-width: 50px;
+        flex-shrink: 0;
+    }
+
+    .controls {
+        flex-shrink: 0;
+        gap: 8px;
+    }
 }
