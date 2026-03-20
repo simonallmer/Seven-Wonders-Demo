@@ -303,10 +303,15 @@ button.active {
     height: 100%;
     background: rgba(0, 0, 0, 0.9);
     display: none;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    z-index: 100;
+    justify-content: flex-start; /* Start from top to ensure top content is reachable */
+    z-index: 1000; /* High z-index to stay above everything */
     backdrop-filter: blur(10px);
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal-content {
@@ -315,7 +320,11 @@ button.active {
     padding: 40px;
     text-align: center;
     max-width: 500px;
+    width: 100%;
     color: var(--text-color);
+    margin: auto; /* Centering helper */
+    position: relative;
+    flex-shrink: 0; /* Prevent shrinking if content is tall */
 }
 
 .modal-content h2 {
@@ -406,4 +415,19 @@ footer {
 #menu-trigger.active .sky-line:nth-child(3) {
     width: 26px;
     transform: translateY(-8px) rotate(-45deg);
+}
+
+@media (max-width: 480px) {
+    .modal-content {
+        padding: 25px 20px;
+    }
+    
+    .rules-text {
+        font-size: 0.85rem;
+    }
+    
+    .modal-content h2 {
+        font-size: 1.4rem;
+        letter-spacing: 2px;
+    }
 }
