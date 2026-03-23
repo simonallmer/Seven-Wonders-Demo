@@ -1239,11 +1239,14 @@ class View3D {
 // --- App Bootstrap ---
 document.addEventListener('DOMContentLoaded', () => {
     const game = new SkyscraperGame();
+    game.setMode(4);
+    game.aiDifficulty = 'medium';
     let v2d = new View2D(document.getElementById('canvas2d'), game);
     let v3d = new View3D(document.getElementById('canvas3d'), game);
 
     const modeBtn = document.getElementById('mode-btn');
     const modeMenu = document.getElementById('mode-menu');
+    modeBtn.textContent = '4 Players';
     modeBtn.onclick = () => modeMenu.classList.toggle('visible');
 
     const setPlayers = (players) => {
@@ -1345,7 +1348,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const aiBtn = document.getElementById('ai-btn');
     const aiMenu = document.getElementById('ai-menu');
+    aiBtn.textContent = 'Opponent: Computer: Medium';
     aiBtn.onclick = () => aiMenu.classList.toggle('visible');
+
+    document.getElementById('score-block-blue').style.display = 'flex';
+    document.getElementById('score-block-green').style.display = 'flex';
 
     aiMenu.querySelectorAll('button').forEach(btn => {
         btn.onclick = (e) => {
