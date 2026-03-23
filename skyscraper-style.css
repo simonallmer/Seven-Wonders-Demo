@@ -454,11 +454,18 @@ footer {
     .controls {
         flex-shrink: 0;
         gap: 8px;
-        overflow-x: auto;
+        overflow-x: scroll;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
         -ms-overflow-style: none;
         padding: 5px 0;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        width: 100%;
+    }
+
+    .controls > * {
+        flex-shrink: 0;
     }
 
     .controls::-webkit-scrollbar {
