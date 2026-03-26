@@ -32,7 +32,8 @@
     </div>
 
     <div id="side-menu" class="side-menu">
-        <div class="menu-content">
+        <div class="menu-content" id="statue-menu-content">
+            <div id="game-menu-timer-container"></div>
             <h1 class="game-title">STATUE</h1>
             <p class="game-subtitle" style="text-align: center; margin-top: -15px; opacity: 0.7;">The Statue of Zeus at Olympia</p>
             
@@ -164,22 +165,41 @@
         const overlay = document.getElementById('overlay');
 
         function toggleSideMenu() {
-            sideMenu.classList.toggle('open');
+            const isOpen = sideMenu.classList.toggle('open');
             menuToggle.classList.toggle('active');
             overlay.classList.toggle('active');
+            
+            if (isOpen && typeof addGameMenuTimer === 'function') {
+                addGameMenuTimer('game-menu-timer-container');
+            }
         }
 
         // Hamburger button toggles the side menu
-        menuToggle.addEventListener('click', toggleSideMenu);
+        menuToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSideMenu();
+        });
 
-        closeMenuBtn.addEventListener('click', toggleSideMenu);
+        if (closeMenuBtn) {
+            closeMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (sideMenu.classList.contains('open')) toggleSideMenu();
+            });
+        }
 
         // Click on overlay closes menu
-        overlay.addEventListener('click', toggleSideMenu);
-
-        rulesBtn.addEventListener('click', () => {
-            rulesModal.classList.remove('hidden');
+        overlay.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (sideMenu.classList.contains('open')) toggleSideMenu();
         });
+
+        if (rulesBtn) {
+            rulesBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                rulesModal.classList.remove('hidden');
+                if (sideMenu.classList.contains('open')) toggleSideMenu();
+            });
+        }
 
         closeRulesBtn.addEventListener('click', () => {
             rulesModal.classList.add('hidden');
@@ -200,6 +220,7 @@
         // Side Menu and Rules initialization
         // Diminish UI is handled by inline onclick in the HTML for better reliability.
     </script>
+    <script src="demo-timer.js"></script>
 </body>
 
 

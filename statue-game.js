@@ -1277,10 +1277,12 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-const overlay = document.getElementById('overlay');
-if (overlay) overlay.addEventListener('click', () => {
-    if (sideMenuEl) sideMenuEl.classList.remove('open');
-    if (menuToggleEl) menuToggleEl.classList.remove('active');
+const overlayEl = document.getElementById('overlay');
+if (overlayEl) overlayEl.addEventListener('click', () => {
+    const sm = document.getElementById('side-menu');
+    const mt = document.getElementById('menu-toggle');
+    if (sm) sm.classList.remove('open');
+    if (mt) mt.classList.remove('active');
 });
 
 

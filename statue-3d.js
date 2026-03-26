@@ -139,7 +139,7 @@ function init3D() {
         // Add click listener to canvas (single registration only — avoid duplicate fire)
         const canvas = renderer.domElement;
         canvas.addEventListener('pointerdown', onMouseDown);
-        canvas.addEventListener('click', onCanvasClick);
+        canvas.addEventListener('pointerup', onCanvasClick);
         canvas.addEventListener('pointermove', onCanvasMouseMove);
 
         window.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelSelection(); });
@@ -1407,11 +1407,20 @@ function onCanvasClick(event) {
     const dx = event.clientX - mouseDownX;
     const dy = event.clientY - mouseDownY;
     const distSq = dx * dx + dy * dy;
-    const threshold = isTouch ? DRAG_THRESHOLD_PX * 2 : DRAG_THRESHOLD_PX;
+    const threshold = isTouch ? DRAG_THRESHOLD_PX * 1.5 : DRAG_THRESHOLD_PX;
     const isDrag = distSq > (threshold * threshold);
     
-    if (isDrag) {
-        console.log('Click ignored: mouse/touch dragged', Math.sqrt(distSq).toFixed(1), 'px');
+    // Also check if camera moved significantly to prevent accidental clicks
+    let cameraMoved = false;
+    if (controls) {
+        const deltaAzimuth = Math.abs(controls.getAzimuthalAngle() - cameraStartAzimuth);
+        const deltaPolar = Math.abs(controls.getPolarAngle() - cameraStartPolar);
+        if (deltaAzimuth > 0.05 || deltaPolar > 0.05) cameraMoved = true;
+    }
+
+    if (isDrag || cameraMoved) {
+        // Only log if it was a significant move to avoid spam
+        if (distSq > 100) console.log('Interaction ignored: drag or camera move detected');
         return;
     }
 
