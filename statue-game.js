@@ -140,15 +140,8 @@ function updateStatusDisplay() {
         if (gamePhase === 'ACTION_SELECT' || gamePhase === 'PLACE') {
             messageBox.classList.add('hidden');
         } else if (gamePhase === 'STRIDE_MOVE' && selectedDie) {
-            // Only show message for longer moves that need tracking, 
-            // otherwise keep HUD clean as requested.
-            const rem = selectedDie.value - selectedDie.stepsTaken;
-            if (rem > 0) {
-                messageBox.textContent = `Steps: ${rem}`;
-                messageBox.classList.remove('hidden');
-            } else {
-                messageBox.classList.add('hidden');
-            }
+            // Keep HUD clean as requested. Turn status is in side menu.
+            messageBox.classList.add('hidden');
         }
     }
 
@@ -355,7 +348,8 @@ window.handleDiePickup = function(player) {
 
     // Enter placement mode - reserve will be decremented when actually placing
     gamePhase = 'PLACE';
-    messageBox.textContent = `Select stone. Click an empty square to place.`;
+    // instruction removed as requested
+    messageBox.classList.add('hidden');
     
     return true;
 };
@@ -414,7 +408,7 @@ window.handle3DClick = function(r, c) {
             // Check if this stone has any legal moves
             const validTargets = calculateStrideTargets(die.r, die.c, 1, currentPlayer);
             if (validTargets.length === 0) {
-                messageBox.textContent = `Stone at that position has no legal moves. Pick a different stone.`;
+                // instruction removed as requested
                 return;
             }
             
@@ -426,7 +420,7 @@ window.handle3DClick = function(r, c) {
             gamePhase = 'STRIDE_MOVE';
             
             const remaining = die.value;
-            messageBox.textContent = `Move ${remaining} step(s) — select one highlighted field at a time (or click DIMINISH)`;
+            messageBox.classList.add('hidden');
             messageBox.classList.remove('hidden');
             
             // Unified call to renderBoard which handles both 2D and 3D highlights
@@ -450,10 +444,8 @@ window.handle3DClick = function(r, c) {
                 if (window.hideDiminishButton) window.hideDiminishButton();
                 if (window.syncBoard3D) window.syncBoard3D();
                 renderBoard();
-                messageBox.textContent = `Player ${currentPlayer}'s turn. Click empty field to place, or stone to move.`;
-            } else {
-                // Already moving — re-clicking the stone is not allowed mid-move
-                messageBox.textContent = `You must complete the move: ${selectedDie.value - selectedDie.stepsTaken} step(s) remaining.`;
+                // instruction removed as requested
+                messageBox.classList.add('hidden');
             }
             return;
         }
@@ -461,8 +453,7 @@ window.handle3DClick = function(r, c) {
         // Click on a different own stone — only allowed if no steps have been taken yet
         if (die && die.player === currentPlayer) {
             if (selectedDie.stepsTaken > 0) {
-                // Mid-move: cannot switch stones
-                messageBox.textContent = `Cannot switch stone mid-move. Complete the current move: ${selectedDie.value - selectedDie.stepsTaken} step(s) remaining.`;
+                // instruction removed as requested
                 return;
             }
             // Switch selection (no steps taken yet)
@@ -482,7 +473,7 @@ window.handle3DClick = function(r, c) {
             }
             
             const remaining = die.value - die.stepsTaken;
-            messageBox.textContent = `Steps: ${remaining}`;
+            messageBox.classList.add('hidden');
             renderBoard();
             return;
         }
@@ -546,7 +537,7 @@ window.handle3DClick = function(r, c) {
                     window.showStrideTargets3D(remainingTargets);
                 }
                 const remaining = selectedDie.value - selectedDie.stepsTaken;
-                messageBox.textContent = `Steps: ${remaining}`;
+                messageBox.classList.add('hidden');
 
                 // Hide diminish button once movement has started
                 if (window.hideDiminishButton) window.hideDiminishButton();
@@ -571,12 +562,13 @@ window.handle3DClick = function(r, c) {
                 window.showStrideTargets3D(validTargets);
             }
             
-            messageBox.textContent = `FORCED: Move this value-1 stone 1 field (then value becomes 2)`;
+            // instruction removed as requested
+            messageBox.classList.add('hidden');
             renderBoard(validTargets);
             return;
         } else if (die && die.player === currentPlayer) {
-            console.log('handle3DClick: clicked non-value-1 stone, showing error');
-            messageBox.textContent = `FORCED: You MUST select a value-1 stone!`;
+            // instruction removed as requested
+            messageBox.classList.add('hidden');
         }
     }
     } catch(e) { console.error('handle3DClick error:', e); }
@@ -678,13 +670,7 @@ function switchTurn() {
         forcedTurnActive = false;
 
         if (messageBox) {
-            if (!messageBox.innerHTML.includes("Diminished")) {
-                messageBox.textContent = `FORCED MOVE: Player ${currentPlayer}, you must select and move one of your value 1 dice.`;
-            } else {
-                // Prepend forced move message to existing Diminished message
-                messageBox.textContent = `FORCED: Player ${currentPlayer} - Choose a value 1 die.`;
-            }
-            messageBox.classList.remove('hidden');
+            messageBox.classList.add('hidden');
         }
         toggleActionButtons(false, true);
 
