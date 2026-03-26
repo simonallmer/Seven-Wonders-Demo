@@ -581,6 +581,7 @@ function buildThrone() {
     );
     head.position.y = 48;
     head.scale.set(1, 1.1, 1);
+    head.userData.isZeusHead = true; // Keepable tag
     zeusGroup.add(head);
     
     // Angry/intense eyes indication (small spheres) - glass
@@ -592,10 +593,12 @@ function buildThrone() {
     });
     const leftEye = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 8), eyeMat);
     leftEye.position.set(-4, 50, 8);
+    leftEye.userData.isZeusHead = true;
     zeusGroup.add(leftEye);
     
     const rightEye = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 8), eyeMat);
     rightEye.position.set(4, 50, 8);
+    rightEye.userData.isZeusHead = true;
     zeusGroup.add(rightEye);
     
     // Majestic beard - long and curly
@@ -605,6 +608,7 @@ function buildThrone() {
     );
     beard.position.set(0, 32, 6);
     beard.rotation.x = -Math.PI / 3;
+    beard.userData.isZeusHead = true;
     zeusGroup.add(beard);
     
     // Curly hair strands - flowing Greek god style
@@ -616,6 +620,7 @@ function buildThrone() {
         curl.position.set(-9 + i * 2.5, 54, -3);
         curl.rotation.z = (i - 3.5) * 0.15;
         curl.rotation.y = Math.PI;
+        curl.userData.isZeusHead = true;
         zeusGroup.add(curl);
     }
     
@@ -664,6 +669,7 @@ function buildThrone() {
         matGold
     );
     crown.position.y = 58;
+    crown.userData.isZeusHead = true;
     zeusGroup.add(crown);
     
     // Lightning bolts on sides of crown
@@ -671,11 +677,13 @@ function buildThrone() {
     const leftBolt = new THREE.Mesh(boltGeom, new THREE.MeshStandardMaterial({ color: 0xFFFF88, emissive: 0xFFFF44, emissiveIntensity: 0.5 }));
     leftBolt.position.set(-8, 62, 0);
     leftBolt.rotation.z = Math.PI / 4;
+    leftBolt.userData.isZeusHead = true;
     zeusGroup.add(leftBolt);
     
     const rightBolt = new THREE.Mesh(boltGeom, new THREE.MeshStandardMaterial({ color: 0xFFFF88, emissive: 0xFFFF44, emissiveIntensity: 0.5 }));
     rightBolt.position.set(8, 62, 0);
     rightBolt.rotation.z = -Math.PI / 4;
+    rightBolt.userData.isZeusHead = true;
     zeusGroup.add(rightBolt);
 
     // THE STAFF - Zeus's lightning bolt
@@ -1204,6 +1212,21 @@ function updateHoverEffect() {
     
     raycaster.setFromCamera(mouse, camera);
     
+    // Check for statue head hover to give feedback it's clickable (only if not already triggered to hide)
+    if (!window.statuePermanentlyHidden) {
+        const headIntersects = raycaster.intersectObjects([groupThrone], true);
+        if (headIntersects.length > 0) {
+            let headCheck = headIntersects[0].object;
+            while (headCheck) {
+                if (headCheck.userData && headCheck.userData.isZeusHead) {
+                    document.body.style.cursor = 'pointer';
+                    return;
+                }
+                headCheck = headCheck.parent;
+            }
+        }
+    }
+    
     // Use click plane for field detection (most reliable)
     let r = null, c = null;
     if (clickPlane) {
@@ -1431,13 +1454,29 @@ function onCanvasClick(event) {
     raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
 
     // Get all board tiles for click detection
-    const allTargets = [...cachedBoardMeshes, ...groupPieces.children];
+    // Get all board tiles for click detection, plus throne for accessibility (if not hidden)
+    const allBoardTargets = [...cachedBoardMeshes, ...groupPieces.children];
+    const allTargets = window.statuePermanentlyHidden ? allBoardTargets : [...allBoardTargets, groupThrone];
+    
     console.log('Click targets:', cachedBoardMeshes.length, 'tiles,', groupPieces.children.length, 'pieces');
     const intersects = raycaster.intersectObjects(allTargets, true);
     console.log('Intersects found:', intersects.length);
     
     if (intersects.length > 0) {
         let hitObj = intersects[0].object;
+        
+        // Check if we clicked on Zeus's head for the secret fade-out (only if not already hidden)
+        if (!window.statuePermanentlyHidden) {
+            let headCheck = hitObj;
+            while (headCheck) {
+                if (headCheck.userData && headCheck.userData.isZeusHead) {
+                    console.log("Zeus head clicked! Fading out statue...");
+                    triggerStatueFadeOut();
+                    return; // Consume the click
+                }
+                headCheck = headCheck.parent;
+            }
+        }
         
         // Walk up to find userData with r and c
         while (hitObj && hitObj.userData && hitObj.userData.r === undefined) {
@@ -1759,6 +1798,23 @@ function animate(time) {
     }
 }
 
+window.statueClickFade = 1.0;
+window.statuePermanentlyHidden = false;
+
+function triggerStatueFadeOut() {
+    if (window.statuePermanentlyHidden) return;
+    window.statuePermanentlyHidden = true;
+    
+    new TWEEN.Tween({ opacity: 1.0 })
+        .to({ opacity: 0.0 }, 1500)
+        .easing(TWEEN.Easing.Quadratic.Out)
+        .onUpdate((obj) => {
+            window.statueClickFade = obj.opacity;
+            needsRender = true;
+        })
+        .start();
+}
+
 /**
  * Fades out the Statue of Zeus as the camera zooms in for better board clarity.
  */
@@ -1775,6 +1831,11 @@ function updateStatueFade() {
     
     let opacity = (distance - fadeEnd) / (fadeStart - fadeEnd);
     opacity = Math.max(0, Math.min(1, opacity));
+    
+    // Apply permanent click-to-fade multiplier
+    if (window.statueClickFade !== undefined) {
+        opacity *= window.statueClickFade;
+    }
     
     groupThrone.traverse(child => {
         // Handle Lights fading

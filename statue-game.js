@@ -1228,8 +1228,7 @@ function startNewGame() {
     }
     renderBoard();
     hideGameOverModal();
-    messageBox.classList.remove('hidden');
-    messageBox.textContent = "Player 1's turn. Select a stone to move, or an empty square to place.";
+    messageBox.classList.add('hidden');
     
     if (window.syncBoard3D) {
         window.syncBoard3D();
