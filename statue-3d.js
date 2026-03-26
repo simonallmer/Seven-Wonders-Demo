@@ -1378,9 +1378,11 @@ let mouseDownY = 0;
 let cameraStartAzimuth = 0;
 let cameraStartPolar = 0;
 let cameraStartDistance = 0;
-const DRAG_THRESHOLD_PX = 25;
+const DRAG_THRESHOLD_PX = 40; // Increased for better mobile tolerance
+let isTouch = false;
 
 function onMouseDown(event) {
+    isTouch = event.pointerType === 'touch';
     mouseDownX = event.clientX;
     mouseDownY = event.clientY;
     // Store camera state to detect if it was rotated/zoomed
@@ -1391,6 +1393,12 @@ function onMouseDown(event) {
     }
 }
 function onCanvasClick(event) {
+    // If it's AI's turn, block human input
+    if (window.isAIGame && window.isAIGame() && window.getCurrentPlayer && window.getCurrentPlayer() === 2) {
+        console.log('Interaction blocked: Computer is thinking...');
+        return;
+    }
+    
     console.log('onCanvasClick fired', event.clientX, event.clientY);
     if (!window.is3DView || !scene || !camera || !renderer) return;
     if (event.target !== renderer.domElement) return;
@@ -1398,10 +1406,12 @@ function onCanvasClick(event) {
     // Drag detection check
     const dx = event.clientX - mouseDownX;
     const dy = event.clientY - mouseDownY;
-    const isDrag = (dx * dx + dy * dy) > (DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX);
+    const distSq = dx * dx + dy * dy;
+    const threshold = isTouch ? DRAG_THRESHOLD_PX * 2 : DRAG_THRESHOLD_PX;
+    const isDrag = distSq > (threshold * threshold);
     
     if (isDrag) {
-        console.log('Click ignored: mouse dragged');
+        console.log('Click ignored: mouse/touch dragged', Math.sqrt(distSq).toFixed(1), 'px');
         return;
     }
 

@@ -68,7 +68,7 @@
 
             <div class="menu-divider"></div>
 
-            <button id="opponent-btn" class="menu-btn">Opponent: Human <span style="font-size: 0.6rem; color: rgba(197, 160, 89, 0.7); margin-left: 10px; letter-spacing: 0.1em; text-transform: uppercase; vertical-align: middle;">Soon</span></button>
+            <button id="opponent-btn" class="menu-btn">Opponent: Computer</button>
             <button id="view-toggle-btn" class="menu-btn">View: 3D</button>
             <button id="rules-btn" class="menu-btn rules-btn">Rules</button>
             <button id="reset-button-main" class="menu-btn">New Game</button>
@@ -79,12 +79,17 @@
 
 
     <!-- Game Over Overlay -->
-    <div id="game-over-modal" class="modal">
-        <div class="modal-content">
+    <div id="game-over-modal" class="game-over-overlay hidden">
+        <div class="game-over-content">
             <h2 id="modal-title">Game Over!</h2>
-            <p id="modal-text"></p>
-            <button id="new-game-btn" class="modal-btn">Play Again</button>
-            <button id="menu-btn-modal" class="modal-btn secondary">Menu</button>
+            <div class="winner-display">
+                <span id="modal-winner-icon" class="winner-icon"></span>
+                <p id="modal-text"></p>
+            </div>
+            <div class="modal-actions">
+                <button id="new-game-btn" class="menu-btn primary-btn">Play Again</button>
+                <button id="menu-btn-modal" class="menu-btn secondary-btn">Menu</button>
+            </div>
         </div>
     </div>
 
@@ -156,25 +161,21 @@
         const rulesBtn = document.getElementById('rules-btn');
         const rulesModal = document.getElementById('rules-modal');
         const closeRulesBtn = document.getElementById('rules-close-btn');
-        const rulesOverlay = document.getElementById('rules-overlay');
+        const overlay = document.getElementById('overlay');
 
         function toggleSideMenu() {
             sideMenu.classList.toggle('open');
             menuToggle.classList.toggle('active');
+            overlay.classList.toggle('active');
         }
 
         // Hamburger button toggles the side menu
-        menuToggle.addEventListener('click', () => {
-            sideMenu.classList.toggle('open');
-            menuToggle.classList.toggle('active');
-        });
+        menuToggle.addEventListener('click', toggleSideMenu);
 
+        closeMenuBtn.addEventListener('click', toggleSideMenu);
 
-
-        closeMenuBtn.addEventListener('click', () => {
-            sideMenu.classList.remove('open');
-            menuToggle.classList.remove('active');
-        });
+        // Click on overlay closes menu
+        overlay.addEventListener('click', toggleSideMenu);
 
         rulesBtn.addEventListener('click', () => {
             rulesModal.classList.remove('hidden');
@@ -193,14 +194,6 @@
         if (viewToggleBtn) {
             viewToggleBtn.addEventListener('click', () => {
                 alert('2D View Coming Soon! Please play in 3D mode.');
-            });
-        }
-
-        // Opponent Toggle (Disabled - Computer Coming Soon)
-        const opponentToggleBtn = document.getElementById('opponent-btn');
-        if (opponentToggleBtn) {
-            opponentToggleBtn.addEventListener('click', () => {
-                alert('Computer Mode Coming Soon! Please play against a human opponent.');
             });
         }
 
