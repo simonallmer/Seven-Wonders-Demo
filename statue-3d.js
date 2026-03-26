@@ -38,8 +38,8 @@ function tileTo3D(r, c) {
 }
 
 // Materials
-const matMarble = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.8, metalness: 0.1 });
-const matGold = new THREE.MeshStandardMaterial({ color: 0xD4AF37, roughness: 0.2, metalness: 0.9 });
+const matMarble = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.8, metalness: 0.1, transparent: true });
+const matGold = new THREE.MeshStandardMaterial({ color: 0xD4AF37, roughness: 0.2, metalness: 0.9, transparent: true });
 const matPlaceHighlight = new THREE.MeshBasicMaterial({ color: 0xD4AF37, transparent: true, opacity: 0.7 });
 
 const stoneColors = { 1: 0xf8f8f8, 2: 0x2a2a2a };
@@ -466,7 +466,8 @@ function buildThrone() {
     const goldChairMat = new THREE.MeshStandardMaterial({
         color: 0xD4AF37,
         roughness: 0.3,
-        metalness: 0.8
+        metalness: 0.8,
+        transparent: true
     });
     
     // Chair legs - gold
@@ -551,7 +552,8 @@ function buildThrone() {
     const zeusGoldMat = new THREE.MeshStandardMaterial({
         color: 0xD4AF37,
         roughness: 0.3,
-        metalness: 0.8
+        metalness: 0.8,
+        transparent: true
     });
     const zeusGroup = new THREE.Group();
     zeusGroup.position.y = legHeight + 8;
@@ -730,6 +732,7 @@ function buildThrone() {
     // Point light emanating from crystal
     zeusStaffLight = new THREE.PointLight(0xFFFFFF, 0.5, 100);
     zeusStaffLight.position.set(15, 50, 5);
+    zeusStaffLight.userData.baseIntensity = 0.5;
     zeusGroup.add(zeusStaffLight);
 
     groupThrone.add(zeusGroup);
@@ -780,7 +783,8 @@ function updateZeusStaffColor() {
     
     if (zeusStaffLight) {
         zeusStaffLight.color.setHex(lightColor);
-        zeusStaffLight.intensity = (p1Total === p2Total) ? 0.3 : 1.2;
+        zeusStaffLight.userData.baseIntensity = (p1Total === p2Total) ? 0.3 : 1.2;
+        zeusStaffLight.intensity = zeusStaffLight.userData.baseIntensity;
     }
 }
 
@@ -1714,6 +1718,8 @@ function animate(time) {
     const isTweening = TWEEN.update(time);
     const controlsUpdated = controls.update();
     
+    updateStatueTransparency();
+    
     frameCount++;
     
     // Check if we actually need to render this frame
@@ -1832,6 +1838,46 @@ window.updateDiminishButton = function(enabled, dieId) {
     // Force immediate position update
     updateFloatingButtonPosition();
 };
+
+/**
+ * Smoothly fades out the statue as the camera zooms in
+ */
+function updateStatueTransparency() {
+    if (!camera || !controls || !groupThrone) return;
+    
+    const distance = controls.getDistance();
+    
+    // Fade out between distance 350 and 180
+    // At 350+ opacity is 1.0
+    // At 180- opacity is 0.0
+    let opacity = (distance - 180) / (350 - 180);
+    opacity = Math.max(0, Math.min(1, opacity));
+    
+    // Apply opacity to all meshes in groupThrone
+    groupThrone.traverse((obj) => {
+        if (obj.isMesh && obj.material) {
+            if (Array.isArray(obj.material)) {
+                obj.material.forEach(m => {
+                    m.transparent = true;
+                    m.opacity = opacity;
+                });
+            } else {
+                obj.material.transparent = true;
+                obj.material.opacity = opacity;
+            }
+            obj.visible = opacity > 0.01;
+        }
+    });
+    
+    // Also dim the staff light
+    if (zeusStaffLight) {
+        const base = zeusStaffLight.userData.baseIntensity || 0.5;
+        zeusStaffLight.intensity = base * opacity;
+    }
+    
+    // We always want to render if opacity is changing
+    if (opacity > 0 && opacity < 1) needsRender = true;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {

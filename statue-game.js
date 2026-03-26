@@ -482,7 +482,7 @@ window.handle3DClick = function(r, c) {
             }
             
             const remaining = die.value - die.stepsTaken;
-            messageBox.textContent = `Move ${remaining} more field(s) (1 field per click)`;
+            messageBox.textContent = `Steps: ${remaining}`;
             renderBoard();
             return;
         }
@@ -546,7 +546,7 @@ window.handle3DClick = function(r, c) {
                     window.showStrideTargets3D(remainingTargets);
                 }
                 const remaining = selectedDie.value - selectedDie.stepsTaken;
-                messageBox.textContent = `Move ${remaining} more field(s) (1 field per click)`;
+                messageBox.textContent = `Steps: ${remaining}`;
 
                 // Hide diminish button once movement has started
                 if (window.hideDiminishButton) window.hideDiminishButton();
