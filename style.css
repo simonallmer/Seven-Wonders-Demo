@@ -416,6 +416,15 @@ body::before {
     margin-bottom: 5px;
 }
 
+.demo-subtitle {
+    font-family: 'Cinzel', serif;
+    font-size: 1.1rem;
+    letter-spacing: 0.25em;
+    font-weight: 700;
+    color: var(--gold);
+    margin: 10px 0;
+}
+
 .menu-demo-welcome p:last-child {
     color: #C5A059;
 }
