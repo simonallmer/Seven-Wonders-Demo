@@ -479,6 +479,8 @@ html, body {
     flex-direction: column;
     gap: 20px;
     box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
+    position: relative;
+    z-index: 10; /* Ensure it stays above the overlay */
 }
 
 .game-over-content h2 {
