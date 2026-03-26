@@ -38,8 +38,8 @@ function tileTo3D(r, c) {
 }
 
 // Materials
-const matMarble = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.8, metalness: 0.1, transparent: true });
-const matGold = new THREE.MeshStandardMaterial({ color: 0xD4AF37, roughness: 0.2, metalness: 0.9, transparent: true });
+const matMarble = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.8, metalness: 0.1 });
+const matGold = new THREE.MeshStandardMaterial({ color: 0xD4AF37, roughness: 0.2, metalness: 0.9 });
 const matPlaceHighlight = new THREE.MeshBasicMaterial({ color: 0xD4AF37, transparent: true, opacity: 0.7 });
 
 const stoneColors = { 1: 0xf8f8f8, 2: 0x2a2a2a };
@@ -466,8 +466,7 @@ function buildThrone() {
     const goldChairMat = new THREE.MeshStandardMaterial({
         color: 0xD4AF37,
         roughness: 0.3,
-        metalness: 0.8,
-        transparent: true
+        metalness: 0.8
     });
     
     // Chair legs - gold
@@ -552,8 +551,7 @@ function buildThrone() {
     const zeusGoldMat = new THREE.MeshStandardMaterial({
         color: 0xD4AF37,
         roughness: 0.3,
-        metalness: 0.8,
-        transparent: true
+        metalness: 0.8
     });
     const zeusGroup = new THREE.Group();
     zeusGroup.position.y = legHeight + 8;
@@ -732,7 +730,6 @@ function buildThrone() {
     // Point light emanating from crystal
     zeusStaffLight = new THREE.PointLight(0xFFFFFF, 0.5, 100);
     zeusStaffLight.position.set(15, 50, 5);
-    zeusStaffLight.userData.baseIntensity = 0.5;
     zeusGroup.add(zeusStaffLight);
 
     groupThrone.add(zeusGroup);
@@ -783,8 +780,7 @@ function updateZeusStaffColor() {
     
     if (zeusStaffLight) {
         zeusStaffLight.color.setHex(lightColor);
-        zeusStaffLight.userData.baseIntensity = (p1Total === p2Total) ? 0.3 : 1.2;
-        zeusStaffLight.intensity = zeusStaffLight.userData.baseIntensity;
+        zeusStaffLight.intensity = (p1Total === p2Total) ? 0.3 : 1.2;
     }
 }
 
@@ -1718,8 +1714,6 @@ function animate(time) {
     const isTweening = TWEEN.update(time);
     const controlsUpdated = controls.update();
     
-    updateStatueTransparency();
-    
     frameCount++;
     
     // Check if we actually need to render this frame
@@ -1775,26 +1769,49 @@ function updateStatueFade() {
     const distance = camera.position.distanceTo(controls.target);
     
     // Settings for the fade range:
-    // Fully opaque at 400+, fully transparent at 180-
-    const fadeStart = 400; 
-    const fadeEnd = 180;   
+    // Fully opaque at 450+, fully transparent at 220-
+    const fadeStart = 450; 
+    const fadeEnd = 220;   
     
     let opacity = (distance - fadeEnd) / (fadeStart - fadeEnd);
     opacity = Math.max(0, Math.min(1, opacity));
     
     groupThrone.traverse(child => {
+        // Handle Lights fading
+        if (child.isLight) {
+            if (child.userData.baseIntensity === undefined) {
+                child.userData.baseIntensity = child.intensity || 0.5;
+            }
+            child.intensity = opacity * child.userData.baseIntensity;
+            child.visible = child.intensity > 0.01;
+            return;
+        }
+
         if (child.isMesh && child.material) {
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach(mat => {
-                if (mat.userData.baseOpacity === undefined) {
-                    mat.userData.baseOpacity = (mat.opacity !== undefined) ? mat.opacity : 1.0;
+                // To prevent shared materials (like matGold on board trim) from fading,
+                // we isolate/clone them once the first time we start fading.
+                if (mat.userData.isIsolated === undefined) {
+                    if (mat === matGold || mat === matMarble) {
+                        child.material = mat.clone();
+                        // re-fetch it if it was an array... simplified for now
+                        const newMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                        newMat.userData.isIsolated = true;
+                        newMat.userData.baseOpacity = (newMat.opacity !== undefined) ? newMat.opacity : 1.0;
+                        newMat.transparent = true;
+                    } else {
+                        mat.userData.isIsolated = true;
+                        mat.userData.baseOpacity = (mat.opacity !== undefined) ? mat.opacity : 1.0;
+                        mat.transparent = true;
+                    }
                 }
                 
-                mat.transparent = true;
-                mat.opacity = opacity * mat.userData.baseOpacity;
+                const m = Array.isArray(child.material) ? child.material[materials.indexOf(mat)] : child.material;
+                m.opacity = opacity * (m.userData.baseOpacity || 1.0);
                 
                 // Optimization: hide entirely if transparent
-                child.visible = mat.opacity > 0.005;
+                child.visible = m.opacity > 0.005;
             });
         }
     });
@@ -1838,46 +1855,6 @@ window.updateDiminishButton = function(enabled, dieId) {
     // Force immediate position update
     updateFloatingButtonPosition();
 };
-
-/**
- * Smoothly fades out the statue as the camera zooms in
- */
-function updateStatueTransparency() {
-    if (!camera || !controls || !groupThrone) return;
-    
-    const distance = controls.getDistance();
-    
-    // Fade out between distance 350 and 180
-    // At 350+ opacity is 1.0
-    // At 180- opacity is 0.0
-    let opacity = (distance - 180) / (350 - 180);
-    opacity = Math.max(0, Math.min(1, opacity));
-    
-    // Apply opacity to all meshes in groupThrone
-    groupThrone.traverse((obj) => {
-        if (obj.isMesh && obj.material) {
-            if (Array.isArray(obj.material)) {
-                obj.material.forEach(m => {
-                    m.transparent = true;
-                    m.opacity = opacity;
-                });
-            } else {
-                obj.material.transparent = true;
-                obj.material.opacity = opacity;
-            }
-            obj.visible = opacity > 0.01;
-        }
-    });
-    
-    // Also dim the staff light
-    if (zeusStaffLight) {
-        const base = zeusStaffLight.userData.baseIntensity || 0.5;
-        zeusStaffLight.intensity = base * opacity;
-    }
-    
-    // We always want to render if opacity is changing
-    if (opacity > 0 && opacity < 1) needsRender = true;
-}
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
