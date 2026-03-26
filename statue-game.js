@@ -1272,18 +1272,15 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         const sm = document.getElementById('side-menu');
         const mt = document.getElementById('menu-toggle');
+        const ov = document.getElementById('overlay');
         if (sm) sm.classList.toggle('open');
         if (mt) mt.classList.toggle('active');
+        if (ov) ov.classList.toggle('active');
     }
 });
 
-const overlayEl = document.getElementById('overlay');
-if (overlayEl) overlayEl.addEventListener('click', () => {
-    const sm = document.getElementById('side-menu');
-    const mt = document.getElementById('menu-toggle');
-    if (sm) sm.classList.remove('open');
-    if (mt) mt.classList.remove('active');
-});
+// Note: Overlay click and menu buttons are handled in statue.html toggleSideMenu()
+
 
 
 
