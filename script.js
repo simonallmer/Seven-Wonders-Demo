@@ -57,7 +57,7 @@ const games = {
         url: 'great_wall.html'
     },
     pagoda: {
-        name: 'Pagoda',
+        name: 'Tower',
         description: 'The Tower of Babel',
         status: 'playtest',
         url: 'pagoda.html'
@@ -69,7 +69,7 @@ const games = {
         url: 'citadel.html'
     },
     basilica: {
-        name: 'Basilica',
+        name: 'Cathedral',
         description: 'St. Peter\'s Basilica',
         status: 'playtest',
         url: 'basilica.html'
