@@ -1270,7 +1270,7 @@ document.addEventListener('keydown', (e) => {
 
 
 function showRules() {
-    alert("STATUE RULES:\n1. Each player has 8 dice in reserve (forming the throne legs).\n2. On your turn, either PLACE a die on any empty square, MOVE one of your dice, or DIMINISH one of your dice.\n3. MOVE: Step adjacent, then rotate to increase value (1-6). If value is 1, you MUST move.\n4. DIMINISH: Decrease a die's value by 1 (cannot go below 1).\n5. CAPTURE: Land on or skip over an opponent's die of lower value to capture it (send back to reserve).");
+    alert("STATUE RULES:\n1. Each player has 8 dice in reserve (forming the throne legs).\n2. On your turn, either PLACE a die on any empty square, MOVE one of your dice, or DIMINISH one of your dice (only if opponent has a movable 1-stone).\n3. MOVE: Move horizontally/vertically [value] spaces. Each step = 1 space. Capture opponent's stone (> 1) by landing on it. After movement, increase value by 1. After a 6 has moved, it becomes a 1 again.\n4. DIMINISH: Decrease one of your stones' values by 1. This forces the opponent to move a value-1 stone on their next turn.\n5. WINNING: Reduce opponent's stones to fewer than 4.");
 }
 
 // Test function to manually place a stone
