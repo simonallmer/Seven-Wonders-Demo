@@ -47,37 +47,37 @@ const games = {
     colosseum: {
         name: 'Colosseum',
         description: 'The Flavian Amphitheatre',
-        status: 'playtest',
+        status: 'construction',
         url: 'colosseum.html'
     },
     great_wall: {
         name: 'Great Wall',
         description: 'The Great Wall of China',
-        status: 'playtest',
+        status: 'construction',
         url: 'great_wall.html'
     },
     pagoda: {
         name: 'Tower',
         description: 'The Tower of Babel',
-        status: 'playtest',
+        status: 'construction',
         url: 'pagoda.html'
     },
     citadel: {
         name: 'Citadel',
         description: 'Machu Picchu',
-        status: 'playtest',
+        status: 'construction',
         url: 'citadel.html'
     },
     basilica: {
         name: 'Cathedral',
         description: 'St. Peter\'s Basilica',
-        status: 'playtest',
+        status: 'construction',
         url: 'basilica.html'
     },
     palace: {
         name: 'Palace',
         description: 'The Forbidden City',
-        status: 'playtest',
+        status: 'construction',
         url: 'palace.html'
     },
     skyscraper: {
@@ -131,7 +131,7 @@ function handleGameSelection(gameId) {
                 alert('Incorrect password.');
             }
         } else {
-            alert(`${game.name}\n\n${game.description}\n\nComing Soon...`);
+            alert(`${game.name} is currently under construction and will open by the end of 2026.`);
         }
     }
 }
