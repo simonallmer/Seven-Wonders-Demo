@@ -96,7 +96,6 @@ function init3D() {
     controls.maxPolarAngle = Math.PI / 2 - 0.05;
     controls.enablePan = true;
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-    controls.touches = { ONE: THREE.TOUCH.ROTATE_PAN, TWO: THREE.TOUCH.DOLLY_PAN };
     controls.target.set(0, WALL_TOP, 0);
     controls.update();
     controls.addEventListener('change', () => { needsRender = true; });
