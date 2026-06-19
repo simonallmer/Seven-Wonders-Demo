@@ -47,7 +47,7 @@ const games = {
     colosseum: {
         name: 'Colosseum',
         description: 'The Flavian Amphitheatre',
-        status: 'construction',
+        status: 'playtest',
         url: 'colosseum.html'
     },
     great_wall: {
@@ -56,11 +56,11 @@ const games = {
         status: 'available',
         url: 'great_wall.html'
     },
-    pagoda: {
+    tower: {
         name: 'Tower',
-        description: 'The Tower of Babel',
-        status: 'construction',
-        url: 'pagoda.html'
+        description: 'The Porcelain Tower of Nanjing',
+        status: 'playtest',
+        url: 'tower.html'
     },
     citadel: {
         name: 'Citadel',
