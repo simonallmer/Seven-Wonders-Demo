@@ -16,10 +16,6 @@
     <div class="container">
         <header class="main-header">
             <h1 class="title">SEVEN WONDERS</h1>
-            <div id="menu-demo-welcome" class="menu-demo-welcome">
-                <p class="demo-subtitle">DEMO VERSION</p>
-                <p id="menu-demo-timer">Time remaining: <span id="menu-timer-span">--:--</span></p>
-            </div>
         </header>
 
         <div class="menu-container-3d">
@@ -43,13 +39,11 @@
                 <div class="menu-face menu-back">
                     <nav class="game-menu">
                         <ul class="game-list">
-                            <li><a href="colosseum.html" class="game-link locked" data-id="colosseum">Colosseum</a>
-                            </li>
+                            <li><a href="colosseum.html" class="game-link locked" data-id="colosseum">Colosseum<span class="proto-tag">Prototype</span></a></li>
                             <li><a href="great_wall.html" class="game-link" data-id="great_wall">Great Wall</a></li>
-                            <li><a href="tower.html" class="game-link locked" data-id="tower">Tower</a></li>
-                            <li><a href="citadel.html" class="game-link coming-soon" data-id="citadel">Citadel</a></li>
-                            <li><a href="basilica.html" class="game-link coming-soon" data-id="basilica">Cathedral</a>
-                            </li>
+                            <li><a href="library.html" class="game-link" data-id="library">Library</a></li>
+                            <li><a href="tower.html" class="game-link locked" data-id="tower">Tower<span class="proto-tag">Prototype</span></a></li>
+                            <li><a href="cathedral.html" class="game-link coming-soon" data-id="cathedral">Cathedral<span class="proto-tag">Prototype</span></a></li>
                             <li><a href="palace.html" class="game-link coming-soon" data-id="palace">Palace</a></li>
                             <li><a href="skyscraper.html" class="game-link" data-id="skyscraper">Skyscraper</a></li>
                         </ul>
@@ -77,23 +71,15 @@
     </div>
 
     <script src="script.js"></script>
-    <script src="demo-timer.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            updateMenuDemoTimer();
-            setInterval(updateMenuDemoTimer, 1000);
+        // Press D on the main menu to open the Developer Log (password-gated).
+        document.addEventListener('keydown', function (e) {
+            var tag = (e.target && e.target.tagName) || '';
+            if (/^(INPUT|TEXTAREA)$/.test(tag)) return;
+            if (e.key === 'd' || e.key === 'D') { window.location.href = 'devlog.html'; }
         });
-        
-        function updateMenuDemoTimer() {
-            const span = document.getElementById('menu-timer-span');
-            if (span) {
-                span.textContent = formatTime(getRemainingTime());
-                if (isDemoExpired()) {
-                    document.getElementById('menu-demo-timer').innerHTML = 'Demo time expired. <a href="https://simonallmer.com/arcade" target="_blank" rel="noopener noreferrer" style="color: #C5A059;">Subscribe</a>';
-                }
-            }
-        }
     </script>
+
 </body>
 
 </html>
