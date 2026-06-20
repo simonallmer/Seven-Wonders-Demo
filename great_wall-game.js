@@ -55,7 +55,7 @@ var selectedWarrior = null;
 var previewWarriorId = null; // shield-arc preview (informational)
 var busy = false;
 var gameOver = false;
-var isVsComputer = true;
+var isVsComputer = false;
 var hiddenFacing = false;
 var _validPlaceCache = null;
 var lastChain = [];          // supply-chain nodes of current player (for 3D glow)
@@ -97,7 +97,7 @@ function showMessage(text, duration) {
     window.msgTimeout = setTimeout(function () { gameMessage.classList.add('hidden'); }, duration);
 }
 
-function setPrompt(text) { if (actionPrompt) actionPrompt.textContent = text || ''; }
+function setPrompt(text) { if (actionPrompt) actionPrompt.textContent = ''; }
 
 // ============================================
 // RULE HELPERS
