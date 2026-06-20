@@ -71,12 +71,16 @@
     </div>
 
     <script src="script.js"></script>
+    <script src="demo-timer.js"></script>
     <script>
         // Press D on the main menu to open the Developer Log (password-gated).
         document.addEventListener('keydown', function (e) {
             var tag = (e.target && e.target.tagName) || '';
             if (/^(INPUT|TEXTAREA)$/.test(tag)) return;
             if (e.key === 'd' || e.key === 'D') { window.location.href = 'devlog.html'; }
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof showMenuDemoStatus === 'function') showMenuDemoStatus();
         });
     </script>
 
