@@ -62,22 +62,34 @@ const games = {
         status: 'playtest',
         url: 'tower.html'
     },
-    citadel: {
-        name: 'Citadel',
-        description: 'Machu Picchu',
-        status: 'construction',
-        url: 'citadel.html'
+    pagoda: {
+        name: 'Pagoda',
+        description: 'The Tower of Babel',
+        status: 'playtest',
+        url: 'pagoda.html'
+    },
+    library: {
+        name: 'Library',
+        description: 'The House of Wisdom — Baghdad',
+        status: 'playtest',
+        url: 'library.html'
     },
     basilica: {
-        name: 'Cathedral',
+        name: 'Basilica',
         description: 'St. Peter\'s Basilica',
-        status: 'construction',
+        status: 'playtest',
         url: 'basilica.html'
+    },
+    cathedral: {
+        name: 'Cathedral',
+        description: 'The Gothic Cathedral',
+        status: 'available',
+        url: 'cathedral.html'
     },
     palace: {
         name: 'Palace',
-        description: 'The Forbidden City',
-        status: 'construction',
+        description: 'The Crystal Palace',
+        status: 'available',
         url: 'palace.html'
     },
     skyscraper: {
@@ -114,24 +126,19 @@ function handleGameSelection(gameId) {
         console.log(`Selected game: ${game.name}`);
 
         if (game.status === 'available' && game.url) {
-            if (!checkDemoAccess()) {
-                alert(`Your daily demo time has ended.\n\nContinue playing and unlock all features with an Arcade Subscription.\n\nhttps://simonallmer.com/arcade`);
-                return;
-            }
+            // Navigate to the game page
             window.location.href = game.url;
         } else if (game.status === 'playtest' && game.url) {
-            if (!checkDemoAccess()) {
-                alert(`Your daily demo time has ended.\n\nContinue playing and unlock all features with an Arcade Subscription.\n\nhttps://simonallmer.com/arcade`);
-                return;
-            }
+            // Check password for playtest games
             const password = prompt(`${game.name} is currently only open to playtesters.\n\nPlease enter the access password:`);
             if (password === '2020') {
                 window.location.href = game.url;
-            } else if (password !== null) {
+            } else if (password !== null) { // If user cancelled, do nothing. If wrong password, alert.
                 alert('Incorrect password.');
             }
         } else {
-            alert(`${game.name} is currently under construction and will open by the end of 2026.`);
+            // Show coming soon message
+            alert(`${game.name}\n\n${game.description}\n\nComing Soon...`);
         }
     }
 }
