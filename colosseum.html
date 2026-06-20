@@ -3,90 +3,122 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Colosseum - Seven Wonders</title>
     <meta name="description" content="Play Colosseum, an ancient strategy game from the Seven Wonders series">
     <link rel="stylesheet" href="colosseum-style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
 </head>
 
-<body>
-    <!-- Back to Menu -->
-    <a href="index.html?menu=new" class="back-link">← Back to Seven Wonders</a>
+<body class="view-3d">
+    <div id="game-container">
+        <div id="canvas3d" class="canvas-container"></div>
+    </div>
 
-    <!-- Header -->
-    <header class="game-header">
-        <h1 class="game-title">COLOSSEUM</h1>
-        <p class="game-subtitle">The Colosseum of Rome</p>
-    </header>
+    <div class="top-bar">
+        <a href="index.html" class="top-bar-btn top-bar-link">← Menu</a>
+        <button id="menu-toggle" class="top-bar-btn menu-toggle-btn"><span></span><span></span><span></span></button>
+    </div>
 
-    <!-- Stone Boxes -->
-    <div class="stone-boxes">
-        <div class="stone-box white-box active-turn" id="white-box">
-            <div class="box-label">White Player</div>
-            <div class="box-content" data-color="white">
-                <!-- Status indicator only -->
+    <div id="side-menu" class="side-menu">
+        <div class="menu-content">
+            <h1 class="game-title">COLOSSEUM</h1>
+
+            <div class="player-info">
+                <div class="current-player-display">
+                    <div id="player-indicator" class="player-indicator"></div>
+                    <span id="player-name">White's Turn</span>
+                </div>
             </div>
-        </div>
 
-        <!-- Gladiator Strength Selection -->
-        <div class="strength-selector">
-            <div class="selector-label">Log in Strength</div>
-            <div class="strength-options">
-                <button class="strength-btn" data-strength="1" onclick="setStrength(1)">
-                    <span class="s-val">S:1</span>
-                    <span class="m-val">Cost: 1</span>
-                </button>
-                <button class="strength-btn" data-strength="2" onclick="setStrength(2)">
-                    <span class="s-val">S:2</span>
-                    <span class="m-val">Cost: 2</span>
-                </button>
-                <button class="strength-btn" data-strength="3" onclick="setStrength(3)">
-                    <span class="s-val">S:3</span>
-                    <span class="m-val">Cost: 3</span>
-                </button>
-                <button class="strength-btn tiger-btn" onclick="setStrength('tiger')">
-                    <span class="tiger-icon">🐅</span>
-                    <span class="m-val">Cost: 3</span>
-                </button>
-            </div>
-            <button class="auto-formation-btn" id="auto-formation" onclick="applyAutomaticFormation()">Automatic
-                Formation</button>
-            <div class="turn-controls">
-                <div class="moves-left">Moves Left: <span id="moves-count">3</span></div>
-                <button class="end-turn-btn" onclick="switchTurn()">End Turn</button>
-            </div>
-        </div>
+            <div id="col-counts" class="col-counts"></div>
 
-        <div class="stone-box black-box" id="black-box">
-            <div class="box-label">Black Player</div>
-            <div class="box-content" data-color="black">
-                <!-- Status indicator only -->
+            <div class="menu-divider"></div>
+
+            <div class="col-players">
+                <span class="col-players-label">Players</span>
+                <div class="col-players-btns">
+                    <button id="col-btn-2p" class="col-pbtn" onclick="setColPlayerCount(2)">2</button>
+                    <button id="col-btn-3p" class="col-pbtn" onclick="setColPlayerCount(3)">3</button>
+                    <button id="col-btn-4p" class="col-pbtn" onclick="setColPlayerCount(4)">4</button>
+                </div>
+            </div>
+
+            <button id="col-opponent-btn" class="menu-btn" onclick="toggleColOpponent()">Opponent: Human</button>
+            <button id="rules-btn" class="menu-btn">Rules</button>
+            <button id="reset-button" class="menu-btn">Reset Game</button>
+            <button id="close-menu-btn" class="menu-btn">Close Menu</button>
+
+            <div class="menu-footer">
+                <p>Design: Simon Allmer</p>
+                <p>After the Flavian Amphitheatre</p>
             </div>
         </div>
     </div>
 
-    <!-- Game Board -->
-    <div class="board-wrapper">
-        <svg id="game-board" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
-            <!-- Board will be generated by JavaScript -->
-        </svg>
+    <div id="action-prompt" class="action-prompt"></div>
+    <div id="game-message" class="game-message hidden"></div>
+
+    <div id="message-box" class="message-overlay" onclick="this.classList.remove('visible')">
+        <div class="message-content" onclick="event.stopPropagation()">
+            <h2 id="message-title" class="message-title"></h2>
+            <p id="message-text" class="message-text"></p>
+            <div class="modal-buttons">
+                <button onclick="newColosseum()" class="modal-btn" id="play-again-btn">Play Again</button>
+                <a href="index.html" class="modal-btn secondary">Menu</a>
+            </div>
+        </div>
     </div>
 
-    <!-- Game Status -->
-    <div class="status-panel">
-        <div class="turn-display" id="game-status">Game initialized</div>
+    <div id="rules-modal" class="rules-modal" style="display:none;">
+        <div class="rules-overlay" id="rules-overlay" onclick="document.getElementById('rules-modal').style.display='none'"></div>
+        <div class="rules-content">
+            <h2>Colosseum Rules</h2>
+            <div class="rules-body">
+                <p><strong>GOAL</strong><br>Reduce each opponent below 4 stones to be the last commander standing. Each army begins with 8 stones on the elevated outer ring.</p>
+                <p><strong>DESCEND</strong><br>On your turn, tap one of your stones, then a highlighted cell — an adjacent ring/sector, inward or outward — to move it one step. The outer ring is safe; the arena below is where blood is spilt.</p>
+                <p><strong>MAJORITY</strong><br>When stones of different colors share a cell inside the arena, whoever has the most survives — the outnumbered are cleared away. The outer ring never resolves combat.</p>
+                <p><strong>STANDOFF</strong><br>Equal forces on a cell lock in a standoff: those stones cannot move until the balance is broken.</p>
+                <p><strong>TERRITORY</strong><br>A cell you move into (rings inside the arena) becomes your territory — you may redeploy any of your stones straight to it from anywhere.</p>
+                <p><strong>DEFEAT</strong><br>A commander reduced below 4 stones is eliminated from the arena — all their remaining stones are routed.</p>
+            </div>
+            <button class="action-btn rules-close-btn" id="rules-close-btn">Close</button>
+        </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="game-footer">
-        <p><a href="https://sevenwondersgames.com"
-                style="color: inherit; text-decoration: none;">SevenWondersGames.com</a></p>
-        <p>Game Design: Simon Allmer</p>
-    </footer>
-
+    <script>window.is3DView = true;</script>
     <script src="colosseum-game.js"></script>
-    <script src="demo-timer.js"></script>
+    <script src="colosseum-3d.js"></script>
+    <script>
+        const menuToggle = document.getElementById('menu-toggle');
+        const sideMenu = document.getElementById('side-menu');
+        const closeMenuBtn = document.getElementById('close-menu-btn');
+        const rulesBtn = document.getElementById('rules-btn');
+        const rulesModal = document.getElementById('rules-modal');
+        const rulesCloseBtn = document.getElementById('rules-close-btn');
+        function toggleMenu() { menuToggle.classList.toggle('active'); sideMenu.classList.toggle('open'); }
+        menuToggle.addEventListener('click', toggleMenu);
+        closeMenuBtn.addEventListener('click', toggleMenu);
+        rulesBtn.addEventListener('click', () => { rulesModal.style.display = 'flex'; if (sideMenu.classList.contains('open')) toggleMenu(); });
+        rulesCloseBtn.addEventListener('click', () => rulesModal.style.display = 'none');
+        document.getElementById('play-again-btn').addEventListener('click', () => document.getElementById('message-box').classList.remove('visible'));
+
+        // Pin the bottom prompt above mobile Safari's toolbar.
+        (function () {
+            const prompt = document.querySelector('.action-prompt');
+            function pin() {
+                let hidden = 0; const vv = window.visualViewport;
+                if (vv) hidden = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+                if (prompt) prompt.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + ' + (hidden + 24) + 'px)';
+            }
+            if (window.visualViewport) { window.visualViewport.addEventListener('resize', pin); window.visualViewport.addEventListener('scroll', pin); }
+            window.addEventListener('resize', pin); window.addEventListener('orientationchange', pin); window.addEventListener('load', pin);
+            pin(); setTimeout(pin, 300);
+        })();
+    </script>
+    <script src="global-keys.js"></script>
 </body>
 
 </html>
