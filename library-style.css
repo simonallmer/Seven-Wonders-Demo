@@ -1,5 +1,17 @@
 @import url('style.css');
 
+/* Fullscreen game body — override the flex-centered menu body from style.css
+   so the 3D view fills the viewport edge-to-edge with no negative space. */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+    display: block;
+}
+
 /* Ensure 3D canvas fills the background */
 #canvas3d {
     position: fixed;
