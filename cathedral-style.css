@@ -190,6 +190,30 @@ body {
     font-weight: 700;
 }
 
+.stone-counts-display {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+}
+
+.count-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: bold;
+    font-family: 'Cinzel', serif;
+}
+
+.count-item .res {
+    font-size: 0.75rem;
+    opacity: 0.65;
+    font-family: 'Crimson Text', serif;
+}
+
 .count-stone {
     width: 18px;
     height: 18px;
@@ -205,32 +229,6 @@ body {
 .count-stone.black {
     background: var(--black-stone);
     border-color: rgba(255, 255, 255, 0.1);
-}
-
-.score-display {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 10px;
-}
-.score-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-    font-family: 'Cinzel', serif;
-    font-size: 0.9rem;
-}
-.score-label {
-    opacity: 0.7;
-}
-.score-value {
-    font-weight: 700;
-    font-size: 1.2rem;
-    min-width: 20px;
-    text-align: center;
 }
 
 .menu-divider {
@@ -617,4 +615,129 @@ body {
         grid-template-columns: repeat(3, 54px);
         grid-template-rows: repeat(3, 54px);
     }
+}
+
+/* ============================================
+   CATHEDRAL — The Conversion additions
+   ============================================ */
+
+/* Page overlay behind the open side menu */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-speed);
+}
+
+.overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Flyout dropdowns (players / opponent) */
+.players-dropdown, .opp-dropdown {
+    position: relative;
+}
+
+.players-dropdown .menu-btn, .opp-dropdown .menu-btn {
+    width: 100%;
+}
+
+.players-menu, .opp-menu {
+    display: none;
+    position: absolute;
+    right: calc(100% + 10px);
+    top: 0;
+    width: 200px;
+    background: rgba(20, 16, 12, 0.97);
+    border: 1px solid var(--gold);
+    border-radius: 8px;
+    z-index: 1001;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.players-menu.show-flyout, .opp-menu.show-flyout {
+    display: flex !important;
+    flex-direction: column;
+}
+
+.menu-btn-sub {
+    background: transparent;
+    color: var(--light-stone);
+    border: none;
+    padding: 13px 18px;
+    font-family: 'Cinzel', serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.25s;
+}
+
+.menu-btn-sub:hover {
+    background: rgba(197, 160, 89, 0.2);
+}
+
+.menu-btn-sub.active {
+    color: var(--gold);
+    font-weight: 700;
+}
+
+/* Four player colors on the turn indicator */
+.player-indicator.white { background: linear-gradient(135deg, #f3efe6, #c4b79b); }
+.player-indicator.black { background: linear-gradient(135deg, #3a3530, #1a1816); }
+.player-indicator.blue  { background: linear-gradient(135deg, #5a8ad0, #2a4a85); }
+.player-indicator.red   { background: linear-gradient(135deg, #c85448, #7a241c); }
+
+/* Status panel above the board */
+#status-panel-top {
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+#status-panel-top .status-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#player-name {
+    color: #e7dcc0;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+#action-prompt {
+    font-size: 0.8rem;
+    color: #b8a582;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.rules-modal.hidden, .message-overlay.hidden {
+    display: none;
+}
+
+/* small Prototype tag next to the subtitle */
+.proto-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 1px solid rgba(197, 160, 89, 0.5);
+    border-radius: 10px;
+    vertical-align: middle;
 }
