@@ -71,7 +71,7 @@ const games = {
     library: {
         name: 'Library',
         description: 'The House of Wisdom — Baghdad',
-        status: 'coming-soon',
+        status: 'available',
         url: 'library.html'
     },
     basilica: {
