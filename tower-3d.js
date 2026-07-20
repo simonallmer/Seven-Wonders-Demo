@@ -53,6 +53,10 @@ const matTrunk = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.
 const matTileBody = new THREE.MeshStandardMaterial({ color: 0xeae3d2, roughness: 0.6 });
 const matCapW = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
 const matCapB = new THREE.MeshStandardMaterial({ color: 0x1d1d1d, roughness: 0.4 });
+const matCapR = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.35 });
+const matCapU = new THREE.MeshStandardMaterial({ color: 0x2a5db0, roughness: 0.35 });
+const CAP_MATS = { W: matCapW, B: matCapB, R: matCapR, U: matCapU };
+function capMat(owner) { return CAP_MATS[owner] || matCapW; }
 const matBar = new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.5, emissive: 0x3a0000, emissiveIntensity: 0.25 });
 
 const matHiPlace = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.55, depthWrite: false });
@@ -137,7 +141,21 @@ function init3D() {
     window.addEventListener('resize', onResize);
     raycaster = new THREE.Raycaster();
     mouse = new THREE.Vector2();
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    
+    let __pointerDownPos_towerdjs = { x: 0, y: 0 };
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+        __pointerDownPos_towerdjs.x = e.clientX;
+        __pointerDownPos_towerdjs.y = e.clientY;
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+        const dx = e.clientX - __pointerDownPos_towerdjs.x;
+        const dy = e.clientY - __pointerDownPos_towerdjs.y;
+        if (Math.sqrt(dx*dx + dy*dy) < 5) {
+            onPointerDown(e);
+        }
+    });
+
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerleave', clearHover);
     renderer.setAnimationLoop(animate);
@@ -293,7 +311,7 @@ function makeTile(owner, num) {
     const body = new THREE.Mesh(PRISM_GEO, matTileBody.clone());
     body.castShadow = true; body.receiveShadow = true;
     g.add(body);
-    const cap = new THREE.Mesh(CAP_GEO, owner === 'W' ? matCapW : matCapB);
+    const cap = new THREE.Mesh(CAP_GEO, capMat(owner));
     cap.position.y = TILE_H + 0.2;
     g.add(cap);
     g.userData = { owner: owner, num: num, bars: [] };
@@ -338,7 +356,7 @@ function towerSync3D() {
                 // reconcile owner/num
                 if (mesh.userData.owner !== t.owner) {
                     mesh.userData.owner = t.owner;
-                    mesh.children.forEach(c => { if (c.geometry === CAP_GEO) c.material = t.owner === 'W' ? matCapW : matCapB; });
+                    mesh.children.forEach(c => { if (c.geometry === CAP_GEO) c.material = capMat(t.owner); });
                 }
                 if (mesh.userData.num !== t.num) buildBars(mesh, t.num);
                 const p = slotPos(l, s);
@@ -379,11 +397,22 @@ function towerUpdateViews() {
         needsRender = true; return;
     }
     if (st.mode === 'place') {
-        if (st.pool[st.turn] > 0) for (let l = 0; l < window.TOWER_LEVELS; l++) for (let s = 0; s < window.TOWER_SLOTS; s++) if (empty(l, s)) ringAt(l, s, matHiPlace);
+        const canPlaceOn = (c, L) => {
+            if (L === 0) return true;
+            for (let lv = 0; lv < window.TOWER_LEVELS; lv++) for (let sl = 0; sl < window.TOWER_SLOTS; sl++) {
+                const t = st.board[lv][sl]; if (t && t.owner === c && lv === L) return true;
+                if (t && t.owner === c && L > 0 && lv === L - 1) return true;
+            }
+            return false;
+        };
+        if (st.pool[st.turn] > 0) for (let l = 0; l < window.TOWER_LEVELS; l++) for (let s = 0; s < window.TOWER_SLOTS; s++)
+            if (empty(l, s) && canPlaceOn(st.turn, l)) ringAt(l, s, matHiPlace);
     } else if (st.mode === 'move') {
         if (st.selected) {
             ringAt(st.selected.level, st.selected.slot, matHiSel, 8, 10);
             window.towerNeighbors(st.selected.level, st.selected.slot).forEach(n => { if (empty(n.level, n.slot)) ringAt(n.level, n.slot, matHiMove); });
+            // gravity falls: all empty cells below in same column
+            for (let gl = st.selected.level - 1; gl >= 0; gl--) if (empty(gl, st.selected.slot)) ringAt(gl, st.selected.slot, matHiMove);
             // attack targets are reachable from the same selection
             st.attackTargets.forEach(g => { g.tiles.forEach(p => ringAt(p.level, p.slot, g.win ? matHiWin : matHiNo, 7.5, 10)); });
         } else {

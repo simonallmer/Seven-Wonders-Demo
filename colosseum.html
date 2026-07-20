@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="colosseum-style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="camera-pan.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
 </head>
 
@@ -22,6 +23,7 @@
         <button id="menu-toggle" class="top-bar-btn menu-toggle-btn"><span></span><span></span><span></span></button>
     </div>
 
+    <div id="overlay" class="overlay"></div>
     <div id="side-menu" class="side-menu">
         <div class="menu-content">
             <h1 class="game-title">COLOSSEUM</h1>
@@ -37,15 +39,7 @@
 
             <div class="menu-divider"></div>
 
-            <div class="col-players">
-                <span class="col-players-label">Players</span>
-                <div class="col-players-btns">
-                    <button id="col-btn-2p" class="col-pbtn" onclick="setColPlayerCount(2)">2</button>
-                    <button id="col-btn-3p" class="col-pbtn" onclick="setColPlayerCount(3)">3</button>
-                    <button id="col-btn-4p" class="col-pbtn" onclick="setColPlayerCount(4)">4</button>
-                </div>
-            </div>
-
+            <button id="col-players-btn" class="menu-btn" onclick="toggleColPlayers()">Players: 2</button>
             <button id="col-opponent-btn" class="menu-btn" onclick="toggleColOpponent()">Opponent: Computer</button>
             <button id="rules-btn" class="menu-btn">Rules</button>
             <button id="reset-button" class="menu-btn">Reset Game</button>
@@ -98,8 +92,10 @@
         const rulesBtn = document.getElementById('rules-btn');
         const rulesModal = document.getElementById('rules-modal');
         const rulesCloseBtn = document.getElementById('rules-close-btn');
-        function toggleMenu() { menuToggle.classList.toggle('active'); sideMenu.classList.toggle('open'); }
+        const overlay = document.getElementById('overlay');
+        function toggleMenu() { menuToggle.classList.toggle('active'); sideMenu.classList.toggle('open'); overlay.classList.toggle('active'); }
         menuToggle.addEventListener('click', toggleMenu);
+        overlay.addEventListener('click', toggleMenu);
         closeMenuBtn.addEventListener('click', toggleMenu);
         rulesBtn.addEventListener('click', () => { rulesModal.style.display = 'flex'; if (sideMenu.classList.contains('open')) toggleMenu(); });
         rulesCloseBtn.addEventListener('click', () => rulesModal.style.display = 'none');
