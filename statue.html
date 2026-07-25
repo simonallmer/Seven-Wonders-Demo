@@ -168,6 +168,7 @@
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="camera-pan.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
     
     <script src="statue-3d.js"></script>
@@ -187,10 +188,6 @@
             const isOpen = sideMenu.classList.toggle('open');
             menuToggle.classList.toggle('active');
             overlay.classList.toggle('active');
-            
-            if (isOpen && typeof addGameMenuTimer === 'function') {
-                addGameMenuTimer('game-menu-timer-container');
-            }
         }
 
         // Hamburger button toggles the side menu
@@ -254,6 +251,7 @@
         // Side Menu and Rules initialization
         // Diminish UI is handled by inline onclick in the HTML for better reliability.
     </script>
+    <script src="global-keys.js"></script>
     <script src="demo-timer.js"></script>
 </body>
 

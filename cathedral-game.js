@@ -7,8 +7,9 @@
 // nodes see 8 directions, weak nodes 4.
 //
 // SETUP: each player fills the outer 3 rows of their arm (15 stones).
-// 2 players: White (south) vs Black (north). 4 players: + Blue (west)
-// and Red (east). Turn order runs clockwise: W → U → B → R.
+// 2 players: White (south) vs Black (north). 4 players: + Red (west)
+// and Blue (east) — matching Temple's seating (red left, blue right).
+// Turn order runs clockwise from White: W → R → B → U.
 //
 // MOVE (Procession): a stone may travel UP TO as many empty fields in a
 // straight line as the longest unbroken run of friendly stones standing
@@ -87,7 +88,7 @@ function cStoneAt(x, y) { return cathBoard[cKey(x, y)] || null; }
 
 function cathReset(nPlayers) {
     if (nPlayers === 2 || nPlayers === 4)
-        cathPlayers = nPlayers === 2 ? ['W', 'B'] : ['W', 'U', 'B', 'R'];
+        cathPlayers = nPlayers === 2 ? ['W', 'B'] : ['W', 'R', 'B', 'U'];
     cathBoard = {};
     var four = cathPlayers.length === 4;
     for (var i = CATH_ARM_LO; i <= CATH_ARM_HI; i++) {
@@ -95,8 +96,8 @@ function cathReset(nPlayers) {
             cathBoard[cKey(i, CATH_N - 1 - d)] = 'W';           // south
             cathBoard[cKey(i, d)] = 'B';                        // north
             if (four) {
-                cathBoard[cKey(d, i)] = 'U';                    // west
-                cathBoard[cKey(CATH_N - 1 - d, i)] = 'R';       // east
+                cathBoard[cKey(d, i)] = 'R';                    // west (screen left)  — Red, as in Temple
+                cathBoard[cKey(CATH_N - 1 - d, i)] = 'U';       // east (screen right) — Blue, as in Temple
             }
         }
     }

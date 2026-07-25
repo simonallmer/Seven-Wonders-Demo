@@ -291,6 +291,7 @@ function colorName(player) {
     return c.charAt(0).toUpperCase() + c.slice(1);
 }
 
+var winRevealTimer = null;
 function showGameOverModal(title, text, winner) {
     const winnerIcon = document.getElementById('modal-winner-icon');
     if (winnerIcon) {
@@ -300,10 +301,15 @@ function showGameOverModal(title, text, winner) {
     const modalTitle = document.getElementById('modal-title');
     if (modalTitle && title) modalTitle.textContent = title;
     modalText.textContent = text;
-    gameOverModal.classList.remove('hidden');
+    // let the final move play out before covering the board
+    clearTimeout(winRevealTimer);
+    winRevealTimer = setTimeout(() => {
+        gameOverModal.classList.remove('hidden');
+    }, 1100);
 }
 
 function hideGameOverModal() {
+    clearTimeout(winRevealTimer);
     gameOverModal.classList.remove('visible');
     setTimeout(() => {
         gameOverModal.classList.add('hidden');
@@ -498,6 +504,9 @@ window.handle3DClick = function(r, c) {
                 player: currentPlayer
             };
             onBoardDice.push(newDie);
+
+            // First stone placed hides the Statue of Zeus for a clearer board.
+            if (window.triggerStatueFadeOut) window.triggerStatueFadeOut();
 
             if (window.syncBoard3D) window.syncBoard3D();
             renderBoard();
@@ -895,6 +904,9 @@ function handlePlaceClick(event) {
         player: currentPlayer
     });
     reserveDice[currentPlayer]--;
+
+    // First stone placed hides the Statue of Zeus for a clearer board.
+    if (window.triggerStatueFadeOut) window.triggerStatueFadeOut();
 
     renderBoard();
     endTurn(`Player ${currentPlayer} placed a new die (Value 1) at ${String.fromCharCode(97 + c).toUpperCase()}${BOARD_SIZE - r}.`);

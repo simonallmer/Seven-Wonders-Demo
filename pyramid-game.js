@@ -45,7 +45,7 @@ let selectedStone = null;
 let validMoves = [];
 let gameState = 'SELECT_STONE';
 let lastPush = null;
-let isVsComputer = true;
+let isVsComputer = localStorage.getItem('pyramidVsComputer') === null ? true : localStorage.getItem('pyramidVsComputer') === 'true';
 let isMoveInProgress = false; // Block input during move
 let turnInProgress = false;
 
@@ -92,14 +92,11 @@ function initializeUI() {
         isMenuOpen = !isMenuOpen;
         menuToggle.classList.toggle('active', isMenuOpen);
         sideMenu.classList.toggle('open', isMenuOpen);
-        if (isMenuOpen) {
-            addGameMenuTimer('pyramid-menu-content');
-        }
     });
 
     // Close menu when clicking outside
-    document.addEventListener('pointerdown', (e) => {
-        if (isMenuOpen && sideMenu && !sideMenu.contains(e.target) && menuToggle && !menuToggle.contains(e.target)) {
+    document.addEventListener('click', (e) => {
+        if (isMenuOpen && !sideMenu.contains(e.target) && !menuToggle.contains(e.target)) {
             isMenuOpen = false;
             menuToggle.classList.remove('active');
             sideMenu.classList.remove('open');
@@ -132,12 +129,14 @@ function initializeUI() {
 
     opponentBtn.addEventListener('click', () => {
         isVsComputer = !isVsComputer;
+        localStorage.setItem('pyramidVsComputer', isVsComputer);
         opponentBtn.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
         if (isVsComputer && currentPlayer === 'black' && gameState !== 'GAME_OVER') {
             setTimeout(makeAIMove, 600);
         }
     });
-    opponentBtn.textContent = 'Opponent: Computer';
+    
+    opponentBtn.textContent = isVsComputer ? 'Opponent: Computer' : 'Opponent: Human';
 
     rulesBtn.addEventListener('click', () => {
         rulesModal.classList.remove('hidden');
@@ -152,6 +151,7 @@ function initializeUI() {
     rulesOverlay.addEventListener('click', closeRules);
 
     playAgainBtn.addEventListener('click', () => {
+        clearTimeout(winRevealTimer);
         document.getElementById('game-over-overlay').classList.add('hidden');
         initializePyramid();
         if (view3D) view3D.updateStones();
@@ -427,6 +427,7 @@ function checkWinConditions(counts, victoryStones) {
     }
 }
 
+var winRevealTimer = null;
 function showGameOver(title, text) {
     const overlay = document.getElementById('game-over-overlay');
     const titleEl = document.getElementById('game-over-title');
@@ -434,7 +435,9 @@ function showGameOver(title, text) {
     
     titleEl.textContent = title;
     textEl.textContent = text;
-    overlay.classList.remove('hidden');
+    // let the final move play out before covering the board
+    clearTimeout(winRevealTimer);
+    winRevealTimer = setTimeout(() => overlay.classList.remove('hidden'), 1100);
 }
 
 function showMessage(text) {

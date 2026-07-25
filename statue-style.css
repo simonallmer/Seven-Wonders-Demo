@@ -626,26 +626,6 @@ html, body {
     pointer-events: none !important;
 }
 
-/* Demo Timer in Menu */
-#game-menu-timer {
-    text-align: center;
-    padding: 10px 15px;
-    background: rgba(197, 160, 89, 0.1);
-    border: 1px solid rgba(197, 160, 89, 0.3);
-    border-radius: 6px;
-    margin-bottom: 20px;
-    font-family: 'Cinzel', serif;
-}
-
-#game-menu-timer-display {
-    font-size: 1.1rem;
-    color: var(--gold);
-    font-weight: 700;
-}
-
-#permanent-demo-timer {
-    z-index: 11000 !important; /* Above side menu */
-}
 /* ===== 4-player diminish target picker ===== */
 .diminish-target-modal {
     position: fixed;

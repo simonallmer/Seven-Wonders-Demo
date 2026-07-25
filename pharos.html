@@ -26,7 +26,6 @@
     <!-- Side Menu -->
     <div id="side-menu" class="side-menu">
         <div class="menu-content">
-            <div id="game-menu-timer-container"></div>
             <h1 class="game-title" style="text-align: center; font-size: 2.2rem; margin-bottom: 5px;">PHAROS</h1>
             <p class="game-subtitle" style="text-align: center; margin-top: 0; opacity: 0.7; color: #d4cfc4; font-family: 'Cinzel', serif;">The Lighthouse of Alexandria</p>
             
@@ -47,6 +46,7 @@
 
             <button id="players-btn-menu" class="menu-btn">Players: 2</button>
             <button id="opponent-btn-menu" class="menu-btn">Opponent: Computer</button>
+            <button id="beacons-btn-menu" class="menu-btn">Field: Beacons</button>
             <div class="view-dropdown">
                 <button id="view-toggle-btn" class="menu-btn">View: 3D</button>
                 <div id="view-dropdown-content" class="dropdown-content">
@@ -184,13 +184,9 @@
         const viewToggleBtn = document.getElementById('view-toggle-btn');
 
         function toggleMenu() {
-            const isOpen = sideMenu.classList.toggle('open');
+            sideMenu.classList.toggle('open');
             menuToggle.classList.toggle('active');
             overlay.classList.toggle('active');
-
-            if (isOpen && typeof addGameMenuTimer === 'function') {
-                addGameMenuTimer('game-menu-timer-container');
-            }
         }
         window.toggleMenu = toggleMenu; // Make globally accessible
 
@@ -218,6 +214,11 @@
         
         if (opponentBtnMenu) opponentBtnMenu.addEventListener('click', () => {
             if (typeof toggleOpponentMode === 'function') toggleOpponentMode();
+        });
+
+        const beaconsBtnMenu = document.getElementById('beacons-btn-menu');
+        if (beaconsBtnMenu) beaconsBtnMenu.addEventListener('click', () => {
+            if (typeof toggleBeaconsMode === 'function') toggleBeaconsMode();
         });
 
         // ---- Players: toggle 2 <-> 4 (no 3-player mode) ----
@@ -267,6 +268,7 @@
         // Polling for UI sync
         setInterval(updateMenuButtons, 500);
     </script>
+    <script src="global-keys.js"></script>
     <script src="demo-timer.js"></script>
 </body>
 

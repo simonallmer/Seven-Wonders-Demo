@@ -1238,19 +1238,23 @@ class View3D {
 
 // --- App Bootstrap ---
 document.addEventListener('DOMContentLoaded', () => {
-    const game = new SkyscraperGame();
-    game.setMode(4);
-    game.aiDifficulty = 'medium';
+    const savedPlayers = parseInt(localStorage.getItem('skyscraperPlayers')) || 4;
+    const savedDifficulty = localStorage.getItem('skyscraperDifficulty') || 'medium';
+    
+    const game = new SkyscraperGame(savedPlayers);
+    game.aiDifficulty = savedDifficulty;
+    
     let v2d = new View2D(document.getElementById('canvas2d'), game);
     let v3d = new View3D(document.getElementById('canvas3d'), game);
 
     const modeBtn = document.getElementById('mode-btn');
     const modeMenu = document.getElementById('mode-menu');
-    modeBtn.textContent = '4 Players';
     modeBtn.onclick = () => modeMenu.classList.toggle('visible');
+    modeBtn.textContent = savedPlayers + ' Players';
 
     const setPlayers = (players) => {
         game.setMode(players);
+        localStorage.setItem('skyscraperPlayers', players);
         modeBtn.textContent = players + ' Players';
         modeMenu.classList.remove('visible');
         document.getElementById('score-block-blue').style.display = players >= 3 ? 'flex' : 'none';
@@ -1300,7 +1304,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('msg-title').textContent = `${winName} Wins!`;
             document.getElementById('msg-body').textContent =
                 `${winName} controlled ${maxSc} field${maxSc !== 1 ? 's' : ''} — more than ${fraction} of the board.`;
-            document.getElementById('message-modal').style.display = 'flex';
+            // let the final move play out before covering the board
+            setTimeout(() => { document.getElementById('message-modal').style.display = 'flex'; }, 1100);
         }
     };
 
@@ -1348,17 +1353,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const aiBtn = document.getElementById('ai-btn');
     const aiMenu = document.getElementById('ai-menu');
-    aiBtn.textContent = 'Opponent: Computer: Medium';
     aiBtn.onclick = () => aiMenu.classList.toggle('visible');
-
-    document.getElementById('score-block-blue').style.display = 'flex';
-    document.getElementById('score-block-green').style.display = 'flex';
+    
+    // Set initial AI button text based on stored preference
+    const difficultyLabels = { none: 'Human', easy: 'Computer: Easy', medium: 'Computer: Medium', hard: 'Computer: Hard' };
+    aiBtn.textContent = difficultyLabels[savedDifficulty] || 'Opponent: Computer';
 
     aiMenu.querySelectorAll('button').forEach(btn => {
         btn.onclick = (e) => {
             e.stopPropagation();
             const diff = btn.getAttribute('data-diff');
             game.aiDifficulty = diff === 'none' ? null : diff;
+            localStorage.setItem('skyscraperDifficulty', diff);
             aiBtn.textContent = 'Opponent: ' + btn.textContent;
             aiMenu.classList.remove('visible');
             game.reset();
