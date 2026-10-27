@@ -1,4 +1,4 @@
-const DEMO_DURATION_MS = 10 * 60 * 1000;
+const DEMO_DURATION_MS = 5 * 60 * 1000;
 const STORAGE_KEY_START = 'demoStartTime';
 const STORAGE_KEY_DATE = 'demoDate';
 
@@ -261,14 +261,6 @@ function updateTimerContent(timer) {
 function handleTimerClick() {
     showSubscriptionPopup();
 }
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'r' || e.key === 'R') {
-        if (getRemainingTime() > 0) {
-            resetDemoTimer();
-        }
-    }
-});
 
 function showMenuDemoStatus() {
     const header = document.querySelector('.main-header');
