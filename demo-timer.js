@@ -17,9 +17,16 @@ function isNewDay() {
     return storedDate !== today;
 }
 
+const STORAGE_KEY_PAUSE = 'demoPauseState';
+
+let isPaused = false;
+let pauseStartTime = null;
+let accumulatedPauseTime = 0;
+
 function resetDemo() {
     localStorage.setItem(STORAGE_KEY_START, Date.now().toString());
     localStorage.setItem(STORAGE_KEY_DATE, getTodayDateString());
+    clearPauseState();
 }
 
 function initDemo() {
@@ -28,64 +35,74 @@ function initDemo() {
     }
 }
 
-let isPaused = false;
-let pauseStartTime = null;
-let accumulatedPauseTime = 0;
-
-function resetDemoTimer() {
-    accumulatedPauseTime = 0;
-    pauseStartTime = null;
-    localStorage.setItem(STORAGE_KEY_START, Date.now().toString());
-    localStorage.removeItem('demoPauseState');
+function clearPauseState() {
     isPaused = false;
+    pauseStartTime = null;
+    accumulatedPauseTime = 0;
+    localStorage.removeItem(STORAGE_KEY_PAUSE);
+}
+
+function loadPauseState() {
+    const saved = localStorage.getItem(STORAGE_KEY_PAUSE);
+    if (!saved) return;
+    try {
+        const state = JSON.parse(saved);
+        isPaused = !!state.isPaused;
+        pauseStartTime = state.pauseStartTime || null;
+        accumulatedPauseTime = state.accumulatedPauseTime || 0;
+    } catch (e) {
+        clearPauseState();
+    }
+}
+
+function savePauseState() {
+    localStorage.setItem(STORAGE_KEY_PAUSE, JSON.stringify({
+        isPaused,
+        pauseStartTime,
+        accumulatedPauseTime
+    }));
+}
+
+// The clock only advances during active play. Menus, the rules panel, a
+// hidden tab and a player who has walked away all freeze it; that time is
+// banked in accumulatedPauseTime so the demo picks up where it left off.
+function pauseDemoTimer() {
+    loadPauseState();
+    if (isPaused) return;
+    isPaused = true;
+    pauseStartTime = Date.now();
+    savePauseState();
     updateTimerContent();
 }
 
-function loadPauseState() {
-    const saved = localStorage.getItem('demoPauseState');
-    if (saved) {
-        const state = JSON.parse(saved);
-        isPaused = state.isPaused;
-        pauseStartTime = state.pauseStartTime;
-        accumulatedPauseTime = state.accumulatedPauseTime;
+function resumeDemoTimer() {
+    loadPauseState();
+    if (!isPaused) return;
+    if (pauseStartTime) {
+        accumulatedPauseTime += Date.now() - pauseStartTime;
     }
+    isPaused = false;
+    pauseStartTime = null;
+    savePauseState();
+    updateTimerContent();
+}
+
+function resetDemoTimer() {
+    localStorage.setItem(STORAGE_KEY_START, Date.now().toString());
+    clearPauseState();
+    updateTimerContent();
 }
 
 function getRemainingTime() {
     initDemo();
     loadPauseState();
     const startTime = parseInt(localStorage.getItem(STORAGE_KEY_START)) || Date.now();
-    let elapsed = Date.now() - startTime - accumulatedPauseTime;
-    const remaining = DEMO_DURATION_MS - elapsed;
-    return Math.max(0, remaining);
-}
-
-function loadPauseState() {
-    const saved = localStorage.getItem('demoPauseState');
-    if (saved) {
-        const state = JSON.parse(saved);
-        isPaused = state.isPaused;
-        pauseStartTime = state.pauseStartTime;
-        accumulatedPauseTime = state.accumulatedPauseTime;
-    }
-}
-
-function getRemainingTime() {
-    initDemo();
-    loadPauseState();
-    const startTime = parseInt(localStorage.getItem(STORAGE_KEY_START)) || Date.now();
-    let elapsed = Date.now() - startTime;
-    if (isPaused && pauseStartTime) {
-        elapsed = pauseStartTime - startTime - accumulatedPauseTime;
-    } else {
-        elapsed = Date.now() - startTime - accumulatedPauseTime;
-    }
-    const remaining = DEMO_DURATION_MS - elapsed;
-    return Math.max(0, remaining);
+    const countUpTo = (isPaused && pauseStartTime) ? pauseStartTime : Date.now();
+    const elapsed = countUpTo - startTime - accumulatedPauseTime;
+    return Math.max(0, DEMO_DURATION_MS - elapsed);
 }
 
 function isDemoExpired() {
-    if (isPaused) return false;
     return getRemainingTime() <= 0;
 }
 
@@ -250,9 +267,11 @@ function updateTimerContent(timer) {
             <a href="https://simonallmer.com/arcade" target="_blank" rel="noopener noreferrer" style="color: #C5A059; margin-left: 8px; text-decoration: none;" onclick="event.stopPropagation()">Subscribe</a>
         `;
     } else {
-        const display = `<span id="permanent-timer-display" style="color: ${isLow ? '#ff6b6b' : '#C5A059'}; display: inline-block; min-width: 45px;">${formatTime(remaining)}</span>`;
+        const timeColor = isPaused ? 'rgba(197, 160, 89, 0.45)' : (isLow ? '#ff6b6b' : '#C5A059');
+        const display = `<span id="permanent-timer-display" style="color: ${timeColor}; display: inline-block; min-width: 45px;">${formatTime(remaining)}</span>`;
+        const label = isPaused ? 'PAUSED' : 'DEMO';
         timer.innerHTML = `
-            <span style="color: rgba(227, 218, 201, 0.6); display: inline-block; min-width: 50px;">DEMO</span>
+            <span style="color: rgba(227, 218, 201, 0.6); display: inline-block; min-width: 50px;">${label}</span>
             ${display}
         `;
     }
@@ -384,20 +403,97 @@ function startExpirationChecker() {
     }, 1000);
 }
 
+// ============================================
+// ACTIVE PLAY DETECTION
+// ============================================
+
+const DEMO_IDLE_PAUSE_MS = 90 * 1000;
+
+// Menu pages, where the clock never runs.
+const DEMO_MENU_PAGES = ['', '/', 'index.html'];
+
+// Anything that covers the board means the player is reading, not playing.
+const DEMO_PAUSING_SELECTORS = [
+    '.side-menu.open',
+    '#rules-modal',
+    '#rules-overlay',
+    '.rules-modal',
+    '#game-over-overlay',
+    '.game-over-overlay',
+    '#game-over-modal',
+    '#modal-overlay',
+    '#subscription-popup'
+];
+
+let demoLastActivityAt = Date.now();
+
+function demoIsMenuPage() {
+    const page = window.location.pathname.split('/').pop();
+    return DEMO_MENU_PAGES.includes(page);
+}
+
+function demoIsElementVisible(el) {
+    if (!el) return false;
+    if (el.classList.contains('hidden')) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (Number(style.opacity) === 0) return false;
+    return el.getClientRects().length > 0;
+}
+
+function demoIsInterfaceBlocking() {
+    return DEMO_PAUSING_SELECTORS.some(selector =>
+        Array.from(document.querySelectorAll(selector)).some(demoIsElementVisible)
+    );
+}
+
+function demoShouldTimerRun() {
+    if (document.hidden) return false;
+    if (demoIsMenuPage()) return false;
+    if (demoIsInterfaceBlocking()) return false;
+    return Date.now() - demoLastActivityAt <= DEMO_IDLE_PAUSE_MS;
+}
+
+function syncDemoTimerState() {
+    if (demoShouldTimerRun()) {
+        resumeDemoTimer();
+    } else {
+        pauseDemoTimer();
+    }
+}
+
+function demoMarkActivity() {
+    demoLastActivityAt = Date.now();
+}
+
+function startActivityTracking() {
+    ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'].forEach(eventName => {
+        document.addEventListener(eventName, demoMarkActivity, { passive: true });
+    });
+    document.addEventListener('visibilitychange', syncDemoTimerState);
+    window.addEventListener('pagehide', pauseDemoTimer);
+    setInterval(syncDemoTimerState, 500);
+    syncDemoTimerState();
+}
+
 initDemo();
 
+let demoTimerStarted = false;
+
+function startDemoTimer() {
+    if (demoTimerStarted) return;
+    demoTimerStarted = true;
+    addPermanentTimer();
+    startActivityTracking();
+    if (!checkAndShowOverlay()) {
+        startExpirationChecker();
+    }
+}
+
 if (typeof window !== 'undefined') {
-    window.addEventListener('DOMContentLoaded', () => {
-        addPermanentTimer();
-        if (!checkAndShowOverlay()) {
-            startExpirationChecker();
-        }
-    });
+    window.addEventListener('DOMContentLoaded', startDemoTimer);
 }
 
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(() => {
-        addPermanentTimer();
-        checkAndShowOverlay();
-    }, 100);
+    setTimeout(startDemoTimer, 100);
 }
