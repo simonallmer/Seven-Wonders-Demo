@@ -1,14 +1,1 @@
-# OS files
 .DS_Store
-Thumbs.db
-
-# Text editor files
-*.swp
-*.swo
-*~
-.vscode/
-.idea/
-
-# Local config
-.env
-.env.local
